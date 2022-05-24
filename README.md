@@ -1,5 +1,5 @@
 # InstaAug
-Codes for the paper 'Learning Instance-Specific Data Augmentations'. The main package is `InstaAug_module` and we show how to InstaAug to various tasks in `examples`.
+Codes for the paper 'Learning Instance-Specific Data Augmentations'. The main package is `InstaAug_module` and we show how to apply InstaAug to various tasks in `examples`.
 
 ## Usage
 
