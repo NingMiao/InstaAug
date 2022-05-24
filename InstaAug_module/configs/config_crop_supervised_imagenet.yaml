@@ -1,0 +1,38 @@
+mode: crop
+
+dataset: imagenet
+
+transform: ['crop']
+random_aug: False
+global_aug: False
+
+li_flag: True #!
+load_li: False #!
+train_copies: 1 
+test_time_aug: False
+test_copies: 50 
+lr: 0.00001 #!
+warmup_period: 10
+entropy_increase_period: 10
+sleep_period: 0 #not is use now
+
+crop_layer: [4, 5, -1] #!
+crop_layer_bias: [0,1, 3] #!
+
+entropy_weights: [0.2]
+#entropy_weights: [0.2] #For supervised
+#entropy_weights: [0.03] #For contrastive? 
+    
+#Be careful of the order of min and max
+entropy_max_thresholds: [3.0] #~
+entropy_min_thresholds: [2.5] #~
+    
+scheduler_sleep_epoch: 0 #!
+ConvFeature: True
+
+contrastive_train_aug: False
+contrastive_train_copies: 2
+contrastive_train_output_max: 2
+contrastive_test_aug: False
+contrastive_test_copies: 2
+contrastive_test_output_max: 2

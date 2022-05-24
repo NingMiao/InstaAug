@@ -1,0 +1,22 @@
+mode: rotation
+
+dataset: marioiggy
+
+transform: ['rotation']
+random_aug: False
+global_aug: False
+
+li_flag: True #!
+load_li: False #!
+train_copies: 1 
+test_time_aug: False
+test_copies: 10 
+lr: 0.00001 #!
+warmup_period: 10
+
+entropy_weights: [0.1, 0.1]
+entropy_max_thresholds: [3.14, 3.14] #~
+entropy_min_thresholds: [0.0, 0.0] #~
+    
+scheduler_sleep_epoch: 0 #!
+ConvFeature: True

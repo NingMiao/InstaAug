@@ -1,0 +1,49 @@
+mode: crop
+
+dataset: tiny
+
+transform: ['crop']
+random_aug: False #!
+global_aug: False
+
+li_flag: True #!
+load_li: False #This term is not in use.
+train_copies: 1 
+test_time_aug: False
+test_copies: 50 
+lr: 0.0001 #!0.0001
+#sleep_period: 5
+warmup_period: 0 #!10
+no_train_period: 50
+entropy_increase_period: 100 #!100
+
+
+crop_layer: [3, -1] #!
+crop_layer_bias: [1, 1] #!
+
+entropy_weights: [0.0001]
+#entropy_weights: [0.2] #For supervised
+#entropy_weights: [0.03] #For contrastive? 
+    
+#Be careful of the order of min and max
+entropy_max_thresholds: [3.5]
+entropy_min_thresholds: [3.0]
+target_entropy: 2.2 #!
+
+scheduler_sleep_epoch: 0 #!
+ConvFeature: True
+max_tolerance: 30   #! For supervised, choose 30, for random supervised, choose 10
+#!max_tolerance=100#! For contrastive only   
+
+contrastive_train_aug: False
+contrastive_train_copies: 5
+contrastive_train_output_max: 0
+contrastive_train_feature_average: False
+
+contrastive_test_aug: False
+contrastive_test_copies: 10
+contrastive_test_output_max: 0
+contrastive_test_feature_average: True
+
+
+max_black_ratio: 1.0 #! 0.2, 3:4x4, 2: 12x12; 0.0, 3:2x2, 2: 10x10
