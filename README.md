@@ -1,5 +1,5 @@
 # InstaAug: Learning Instance-Specific Data Augmentations
-This is the official code for the paper 'Learning Instance-Specific Data Augmentations'. 
+This is the official codebase for the paper 'Learning Instance-Specific Data Augmentations'. 
 
 --------------------
 InstaAug is a method for automatically learning input-specific augmentations from data. This is achieved by introducing an augmentation module that maps an input to a distribution over transformations. As a plug-in module, InstaAug can effeciently work with supervised and unsupervised models to learn and apply input-specific augmentations.
