@@ -78,7 +78,7 @@ cd examples/self-supervised
 
 Train the model:
 ```sh
-python -m train --dataset tiny_in --epoch 500 --lr 2e-3 --emb 128 --method contrastive--model_folder model/test --Li_config_path ../../InstaAug_module/configs/config_crop_contrastive.yaml--eval_every 50 --crop_s0 1.0 --crop_s1 1.0 --crop_r0 1.0 --crop_r1 1.0 --wandb_name test --entropy_weights 0.003 --num_workers 4 --target_entropy 3.7
+python -m train --dataset tiny_in --epoch 500 --lr 2e-3 --emb 128 --method contrastive--model_folder model/test --Li_config_path ../../InstaAug_module/configs/config_crop_contrastive.yaml --eval_every 50 --crop_s0 1.0 --crop_s1 1.0 --crop_r0 1.0 --crop_r1 1.0 --wandb_name test --entropy_weights 0.003 --num_workers 4 --target_entropy 3.7
 ```
 
 ## References
