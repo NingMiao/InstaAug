@@ -14,7 +14,7 @@ data:
   
   
 training:
-  nb_epochs: 11 #!
+  nb_epochs: 150 #!
   batch_size: 100 #!
   dataset_wrapper:
     mixmo:
@@ -41,7 +41,7 @@ model_wrapper:
     widen_factor: 1 #!
   loss:
     listloss:
-      - name: soft_cross_entropy
+      - name: soft_cross_entropy #!
       #- name: soft_acc #!
         display_name: ce0
         coeff: 1
@@ -74,12 +74,13 @@ model_wrapper:
   optimizer:
     name: sgd
     params:
-      lr: 0.2 #!
+      lr: 0.0 #!
+      #lr: 0.0
       momentum: 0.9
       weight_decay: 0.0001
       nesterov: True
-  warmup_period: 1000 #! For training from scratch
-  #warmup_period: 1 #! For continue training with cropping
+  #warmup_period: 1000 #! For training from scratch
+  warmup_period: 1 #! For continue training with cropping
   lr_schedule:
     name: multigamma_step
     params:

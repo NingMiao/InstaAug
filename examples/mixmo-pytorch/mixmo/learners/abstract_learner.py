@@ -269,8 +269,8 @@ class AbstractLearner:
             dic=short_logs_dict
         )
         # Tensorboard logging
-        if not config.cfg.DEBUG:
-            self.save_tb(logs_dict, epoch=epoch)
+        #if not config.cfg.DEBUG:
+        #    self.save_tb(logs_dict, epoch=epoch)
 
         # Perform end of step procedure like scheduler update
         self.model_wrapper.scheduler.step()

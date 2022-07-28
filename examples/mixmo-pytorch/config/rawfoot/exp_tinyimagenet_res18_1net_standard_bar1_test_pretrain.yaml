@@ -1,0 +1,89 @@
+num_members: 1
+
+data:
+  dataset: rawfoot
+  num_classes: 68
+  crop: False #!
+  test_crop: False #!
+  inset: False #!
+  test_inset: False #!
+  color: False #!#!
+  test_color: False #!
+  brightness: False #!
+  test_brightness: False #!
+  
+  
+training:
+  nb_epochs: 100 #! 30 is enough for random, 100 is enough for ours
+  batch_size: 100 #! 100 for training
+  dataset_wrapper:
+    mixmo:
+      mix_method:
+        method_name: null
+        prob: 1
+        replacement_method_name: mixup
+      alpha: 2
+      weight_root: 3
+    msda:
+      beta: 1
+      prob: 0.5
+      mix_method: null
+    da_method: null
+  batch_sampler:
+    batch_repetitions: 1
+    proba_input_repetition: 0
+
+model_wrapper:
+  name: classifier
+  network: 
+    name: pretrain
+  #network:
+  #  name: resnet
+  #  depth: 18
+  #  widen_factor: 1 #!
+  loss:
+    listloss:
+      - name: soft_cross_entropy
+      #- name: soft_acc #!
+        display_name: ce0
+        coeff: 1
+        input: logits_0
+        target: target_0
+      - name: soft_cross_entropy
+        display_name: ce1
+        coeff: "<num_members"
+        input: logits_1
+        target: target_1
+      - name: soft_cross_entropy
+        display_name: ce2
+        coeff: "<num_members"
+        input: logits_2
+        target: target_2
+    name: multitask
+    display_name: main
+    l2_reg: 0
+    #aug_loss_weight: 0.1
+    #entropy_weight: 0.1
+  metrics:
+    - accuracy
+  metrics_only_test:
+    - nll
+    - accuracytop5
+  optimizer:
+    name: sgd
+    params:
+      lr: 0.02 #!
+      #lr: 0.0
+      momentum: 0.9
+      weight_decay: 0.0001
+      nesterov: True
+  warmup_period: 1 #! For training from scratch
+  #warmup_period: 1 #! For continue training with cropping
+  lr_schedule:
+    name: multigamma_step
+    params:
+      dict_milestone_to_gamma:
+        40: 1 #!
+        50: 1 #!
+        60: 1 #!
+

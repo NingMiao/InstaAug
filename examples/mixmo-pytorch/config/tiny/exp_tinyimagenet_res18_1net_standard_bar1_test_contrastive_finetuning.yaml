@@ -1,9 +1,9 @@
+#Not ok yet
 num_members: 1
 
 data:
-  #!dataset: tinyimagenet200
-  dataset: marioiggy
-  num_classes: 4
+  dataset: tinyimagenet200
+  num_classes: 200
   crop: False #!
   test_crop: False #!
   inset: False #!
@@ -15,8 +15,8 @@ data:
   
   
 training:
-  nb_epochs: 150 #!
-  batch_size: 100 #!#trial should be 100, only 20 for trial
+  nb_epochs: 300 #!
+  batch_size: 100 #!#trial
   dataset_wrapper:
     mixmo:
       mix_method:
@@ -37,7 +37,7 @@ training:
 model_wrapper:
   name: classifier
   network:
-    name: resnet
+    name: resnetcontrastivefinetuning
     depth: 18
     widen_factor: 1 #!
   loss:
@@ -65,14 +65,26 @@ model_wrapper:
     #entropy_weight: 0.1
   metrics:
     - accuracy
+  metrics_only_test:
+    - nll
+    - accuracytop5
+    - diversity
+    - ece
+    - auc
+    - brier
   optimizer:
-    name: sgd
+    #name: sgd
+    #params:
+    #  lr: 0.02 #!
+    #  #lr: 0.0
+    #  momentum: 0.9
+    #  weight_decay: 0.0001
+    #  nesterov: True
+    name: adam
     params:
-      lr: 0.002 #!
-      momentum: 0.9
-      weight_decay: 0.0001
-      nesterov: True
-  warmup_period: 1 
+       lr: 0.001
+  #warmup_period: 1000 #! For training from scratch
+  warmup_period: 1 #! For continue training with cropping
   lr_schedule:
     name: multigamma_step
     params:

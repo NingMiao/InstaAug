@@ -1,8 +1,8 @@
 num_members: 1
 
 data:
-  dataset: tinyimagenet200
-  num_classes: 200
+  dataset: marioiggy
+  num_classes: 4
   crop: False #!
   test_crop: False #!
   inset: False #!
@@ -15,7 +15,7 @@ data:
   
 training:
   nb_epochs: 150 #!
-  batch_size: 100 #!
+  batch_size: 100 #!#trial should be 100, only 20 for trial
   dataset_wrapper:
     mixmo:
       mix_method:
@@ -64,22 +64,14 @@ model_wrapper:
     #entropy_weight: 0.1
   metrics:
     - accuracy
-  metrics_only_test:
-    - nll
-    - accuracytop5
-    - diversity
-    - ece
-    - auc
-    - brier
   optimizer:
     name: sgd
     params:
-      lr: 0.2 #!
+      lr: 0.002 #!
       momentum: 0.9
       weight_decay: 0.0001
       nesterov: True
-  #warmup_period: 1000 #! For training from scratch
-  warmup_period: 1 #! For continue training with cropping
+  warmup_period: 1 
   lr_schedule:
     name: multigamma_step
     params:

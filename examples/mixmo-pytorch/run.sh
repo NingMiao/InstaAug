@@ -1,0 +1,1 @@
+python -m scripts.train --config_path config/cifar100/exp_cifar100_wrn2810_1net_standard_bar1.yaml --dataplace ../../data/ --saveplace model_cifar100/ --gpu 5,6 --info test --from_scratch --max_tolerance 10

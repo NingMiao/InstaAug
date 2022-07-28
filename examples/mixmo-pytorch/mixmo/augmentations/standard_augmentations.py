@@ -258,8 +258,12 @@ def get_default_composed_augmentations(dataset_name, crop=False, test_crop=False
         if test_inset:
             transform_list.append(Inset())
         
+        transform_list.append(transforms.RandomHorizontalFlip())
+        
         transform_list.append(normalize)
         train_transformer = CustomCompose(transform_list)
+        test_transformer = CustomCompose([transforms.ToTensor(), normalize])
+        
 
     elif dataset_name.startswith("tinyimagenet") or dataset_name.startswith("rawfoot") or dataset_name.startswith("imagenet"):
         normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
