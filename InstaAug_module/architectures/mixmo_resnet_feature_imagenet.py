@@ -316,7 +316,7 @@ class PreActResFeatureNet_Imagenet(nn.Module):
             center_dict[4]=c4
         if self.main_layer>=5:
             c5=(c4[0::2, 0::2]+c4[1::2, 1::2])/2
-            center_dict[5]=c4
+            center_dict[5]=c5
         
         
         
