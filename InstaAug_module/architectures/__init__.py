@@ -5,3 +5,4 @@ from .mlp import *
 from .mixmo_resnet_feature import *
 from .mixmo_resnet_feature_rawfoot import PreActResFeatureNet_Rawfoot
 from .mixmo_resnet_feature_imagenet import PreActResFeatureNet_Imagenet
+from .mixmo_resnet_feature_cifar import PreActResFeatureNet_Cifar

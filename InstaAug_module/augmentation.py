@@ -21,7 +21,7 @@ def get_crop_basic_information(conv, crop_layers_id, max_black_ratio=1):
     scopes_crop=[scopes[i] for i in crop_layers_id]
     scope_ranges_crop=[scope_ranges[i] for i in crop_layers_id]
             
-    if max_black_ratio<1:#!
+    if max_black_ratio<=1:#!
         mask=conv.module.mask_for_no_padding(max_black_ratio)
         for i in range(len(centers_crop)):
             m=mask[crop_layers_id[i]]
