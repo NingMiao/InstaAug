@@ -10,14 +10,14 @@ li_flag: True #!
 load_li: False #!
 train_copies: 1 
 test_time_aug: False
-test_copies: 50 
+test_copies: 10
 lr: 0.001 #!
 warmup_period: 10
 entropy_increase_period: 10
 sleep_period: 0 #not is use now
 
 crop_layer: [4, 5, -1] #!
-crop_layer_bias: [0,1, 3] #!
+crop_layer_bias: [0,1, 3] #?
 
 entropy_weights: [0.2]
 #entropy_weights: [0.2] #For supervised

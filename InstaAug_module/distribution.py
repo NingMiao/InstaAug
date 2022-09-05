@@ -86,13 +86,16 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         ##This is without replacement, careful
         rand = torch.empty_like(prob).uniform_()
-        samples = (rand.log()/prob).topk(k=n_copies).indices
+        samples = (-rand.log()+logprob).topk(k=n_copies).indices #Careful log
         
         ##Select the top-output_max patches
         if output_max>0:#!May be incorrect
             smooth=False
             nums=output_max#!
             samples=torch.argsort(-logprob_single, axis=1)[:, :nums]                    
+        #np.save('output/samples_id.npy', samples.detach().cpu().numpy())#@
+        #np.save('output/centers.npy', centers.detach().cpu().numpy())#@
+        #np.save('output/sizes.npy', sizes.detach().cpu().numpy())#@
         
         
         param_pos_list=[]
