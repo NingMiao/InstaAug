@@ -129,7 +129,7 @@ class Image2AugmentParam(nn.Module):
             params_crop=[]
         
         #for i in range(len(params_crop)):#@
-        #    np.save('output/'+'aug_param_'+str(i)+'.npy', params_crop[i].detach().cpu().numpy())#@
+        #    np.save('output/sample/'+'aug_param_'+str(i)+'.npy', params_crop[i].detach().cpu().numpy())#@
         
         #For color aug
         if self.color_layer!=[]:

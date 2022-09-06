@@ -58,6 +58,8 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         self.onehot_mat=torch.eye(self.centers.shape[0], device=device)
         
+        self.output_memory=0
+        
     @property
     def params(self):
         return {}
@@ -93,7 +95,8 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
             smooth=False
             nums=output_max#!
             samples=torch.argsort(-logprob_single, axis=1)[:, :nums]                    
-        #np.save('output/samples_id.npy', samples.detach().cpu().numpy())#@
+        #np.save('output/sample/samples_id_'+str(self.output_memory)+'.npy', samples.detach().cpu().numpy())#@
+        self.output_memory+=1
         #np.save('output/centers.npy', centers.detach().cpu().numpy())#@
         #np.save('output/sizes.npy', sizes.detach().cpu().numpy())#@
         
