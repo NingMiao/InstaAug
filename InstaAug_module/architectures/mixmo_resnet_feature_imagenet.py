@@ -121,12 +121,12 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         #    256 * widen_factor, 512 * widen_factor
         #]
         self._nChannels = [
-            8,
-            8 * widen_factor, 16 * widen_factor,
-            32 * widen_factor
+            32,
+            32 * widen_factor, 64 * widen_factor,
+            128 * widen_factor
         ]
         for i in range(3, self.main_layer):
-            self._nChannels.append(32 * widen_factor)
+            self._nChannels.append(128 * widen_factor)
         
         
     def _init_first_layer(self):
@@ -261,7 +261,7 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         for m in self.modules():
             torchutils.weights_init_hetruncatednormal(m, dense_gaussian=self.dense_gaussian)
         for item in self.output_conv_list:
-            item[0].weight.data/=10#!Stablize training.
+            item[0].weight.data*=0.3#!Stablize training.
 
 
     def forward(self, x): 

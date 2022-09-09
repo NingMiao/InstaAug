@@ -152,7 +152,12 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         sample_logprob=(samples_onehot*logprob.unsqueeze(1)).sum(axis=-1)         
         
-        return transformation_param, entropy_every, sample_logprob
+        #KL divergence which reflects the output difference between inputs
+        prob_mean=prob.mean(axis=0, keepdim=True)
+        log_prob_mean=torch.log(prob_mean)
+        KL_every=(prob_mean*(log_prob_mean-logprob)).sum(axis=-1)
+        
+        return transformation_param, entropy_every, sample_logprob, KL_every
                  
     
     #def rsample(self):

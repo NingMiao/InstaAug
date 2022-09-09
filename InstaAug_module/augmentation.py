@@ -398,7 +398,7 @@ class Augmentation(nn.Module):
                 return x_out, torch.zeros([x_out.shape[0]]).to(x.device) , torch.zeros([x_out.shape[0]]).to(x.device)
             
             #Sample transformation
-            weights, entropy_every, sample_logprob = self.distC_crop(params_crop, n_copies=n_copies, avoid_black_margin=False, output_max=output_max)#!avoid_black_margin is True for contrastive and False for supervised
+            weights, entropy_every, sample_logprob, KL_every = self.distC_crop(params_crop, n_copies=n_copies, avoid_black_margin=False, output_max=output_max)#!avoid_black_margin is True for contrastive and False for supervised
             
             weights = weights.transpose(0,1).reshape([-1, weights.shape[2]]) #shape=[batch_size*n_copies, para_dim]
             sample_logprob = sample_logprob.transpose(0,1).reshape([-1])  #shape=[batch_size*n_copies]
@@ -428,9 +428,9 @@ class Augmentation(nn.Module):
             
             x_out = F.grid_sample(x, flowgrid, align_corners=True)
             
-            return x_out, sample_logprob, entropy_every
+            return x_out, sample_logprob, entropy_every, KL_every
         else:
-            return x, torch.zeros([x.shape[0]]).to(x.device()), torch.zeros([x.shape[0]]).to(x.device())
+            return x, torch.zeros([x.shape[0]]).to(x.device()), torch.zeros([x.shape[0]]).to(x.device()), torch.zeros([x.shape[0]]).to(x.device())
         
         
 if __name__=='__main__':
