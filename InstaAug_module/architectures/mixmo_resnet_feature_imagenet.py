@@ -157,60 +157,23 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         
         self.features_dim = self._nChannels[-1] * self._block.expansion
     
-    def _init_output_network(self):
+    def _init_output_network(self):#?
         
         #New for crop_and_color
         self.output_conv_list=[]
-        for i in range(len(self.output_layer)):
-            layer=self.output_layer[i]
             
-            size_layers=[int(np.ceil(self.input_size/2))]
-            size_layers.append(size_layers[-1])
-            for j in range(1, self.main_layer):
-                size_layers.append(int(np.ceil(size_layers[-1]/2)))
-            if layer > 0:
-                feature_pre=nn.Conv2d(
-                self._nChannels[layer], self.output_dims[i], kernel_size=1, stride=1, padding=0, bias=False)
-                size=size_layers[layer]
-                feature=nn.Sequential(feature_pre, AddBias([self.output_dims[i], size, size]))
-                
-                
-            if layer==-1:
-                feature_pre=nn.Conv2d(
-                self._nChannels[layer], self.output_dims[i], kernel_size=size_layers[-1], stride=1, padding=0, bias=False)
-                feature=nn.Sequential(feature_pre, AddBias([self.output_dims[i], 1, 1]))
-            
-            
-            #exec('self.conv_feature'+'66726'+' =feature')#!
-            exec('self.conv_feature'+str(i)+' =feature')
-            
-            self.output_conv_list.append(feature)
-            self.output_conv_list=torch.nn.ModuleList(self.output_conv_list)#!
+        in_dim=7*7*128
+        out_dim=5*5*3
+        linear_layer_1=torch.nn.Linear(in_dim, in_dim)
+        activation=torch.nn.LeakyReLU(negative_slope=0.1, inplace=False)
+        linear_layer_2=torch.nn.Linear(in_dim, out_dim)
         
-        ##Old for crop only
-        #layer=0
-        #self.conv_feature0=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
+        output_layer=torch.nn.Sequential(linear_layer_1,
+                                          activation,
+                                          linear_layer_2)
         
-        #layer=1
-        #self.conv_feature1=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        #layer=2
-        #self.conv_feature2=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        #layer=3
-        #self.conv_feature3=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        
-        #self.conv_feature_global=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=8, stride=1, padding=0, bias=True)
-        
-        #conv_list=[self.conv_feature0, self.conv_feature1, self.conv_feature2, self.conv_feature3, self.conv_feature_global]
-        
-        
-        #self.output_conv_list=[]
-        #for i in self.output_layer:
-        #    self.output_conv_list.append(conv_list[i])
+        self.output_conv_list.append(output_layer)
+        self.output_conv_list=torch.nn.ModuleList(self.output_conv_list)#!
     
     
     def _make_conv1(self, nb_input_channel):
@@ -259,24 +222,22 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         Apply specified random initializations to all modules of the network
         """
         for m in self.modules():
-            torchutils.weights_init_hetruncatednormal(m, dense_gaussian=self.dense_gaussian)
-        for item in self.output_conv_list:
-            item[0].weight.data*=0.3#!Stablize training.
-
-
-    def forward(self, x): 
+            torchutils.weights_init_hetruncatednormal(m, dense_gaussian=self.dense_gaussian)  
+    
+    def forward(self, x):#? 
 
         merged_representation = self._forward_first_layer(x)
         
         map_list=self._forward_core_network(merged_representation)
         
         out_list=[]
-        for i in range(len(self.output_layer)):
-            out=self.output_conv_list[i](map_list[self.output_layer[i]])
-            #!out_list.append(out[:,0])#??
-            out_list.append(out)#??
+        feature=map_list[-1].reshape(map_list[-1].shape[0], -1)
         
-        return out_list      
+        out=self.output_conv_list[0](feature).reshape([-1, 3, 5, 5])
+        
+        out_list=[out[:,0:1], out[:,1:2], out[:,2:3]]
+        
+        return out_list     
     
     def _forward_first_layer(self, pixels):
         return self.conv1(pixels)
@@ -296,79 +257,32 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         return out_list
     
     def center(self, interval=False):
-                
-        n_pre=self.input_size
-        c_pre=torch.zeros([n_pre,n_pre,2])
-        base=2/n_pre
-        for i in range(n_pre):
-            for j in range(n_pre):
-                c_pre[i,j,0]=-1+base/2+i*base
-                c_pre[i,j,1]=-1+base/2+j*base
-        
-        c0=(c_pre[0::2, 0::2]+c_pre[1::2, 1::2])/2 #New version, get the center rather than left up corner
-        c1=c0
-        c2=(c1[0::2, 0::2]+c1[1::2, 1::2])/2
-        c3=(c2[0::2, 0::2]+c2[1::2, 1::2])/2
-        c_global=torch.zeros([1,1,2])
-        center_dict={0: c0, 1: c1, 2: c2, 3: c3, -1: c_global}
-        if self.main_layer>=4:
-            c4=(c3[0::2, 0::2]+c3[1::2, 1::2])/2
-            center_dict[4]=c4
-        if self.main_layer>=5:
-            c5=(c4[0::2, 0::2]+c4[1::2, 1::2])/2
-            center_dict[5]=c5
+        grid_num=5
+        center=torch.zeros([grid_num,grid_num,2])
+        base=2/(grid_num)
+        for i in range(grid_num):
+            for j in range(grid_num):
+                center[i, j, 0]=-1+base/2+base*i
+                center[i, j, 1]=-1+base/2+base*j
+        centers=[center]*3
         
         
-        
-        centers=[center_dict[l] for l in self.output_layer]
-        if interval:
-            center_interval_dict={i: center_dict[i][1,0,0]-center_dict[i][0,0,0] for i in range(self.main_layer+1)}
-            center_interval_dict[-1]=0.1
-            center_intervals=[center_interval_dict[l] for l in self.output_layer]
-            return centers, center_intervals
-        else:        
-            #return centers    
-            center_interval_dict={i: 0.0 for i in range(self.main_layer+1)}
-            center_interval_dict[-1]=0.0
-            center_intervals=[center_interval_dict[l] for l in self.output_layer]
-            return centers, center_intervals
+        center_interval_dict={i: 0.0 for i in range(self.main_layer+1)}
+        center_interval_dict[-1]=0.0
+        center_intervals=[center_interval_dict[l] for l in self.output_layer]
+        return centers, center_intervals
     
     def scope(self, ranges=False):
+
+        scopes=[0.6, 0.8, 1.0]
         
-        n_pre=self.input_size
-        s_pre=2/n_pre
-        
-        s0=s_pre+s_pre
-        s1=s0+s_pre*2+s_pre*2
-        s2=s1+s_pre*2+s_pre*4
-        s3=s2+s_pre*4+s_pre*8
-        scope_dict={0: s0, 1: s1, 2: s2, 3: s3, -1: 1}
-        if self.main_layer>=4:
-            s4=s3+s_pre*8+s_pre*16
-            scope_dict[4]=s4
-        if self.main_layer>=5:
-            s5=s4+s_pre*16+s_pre*32
-            scope_dict[5]=s5
-        scopes=[scope_dict[l] for l in self.output_layer]
-        
-        if ranges:
-            ##Has at least two output layers, which includes -1
-            scope_ranges=[]
-            scope_ranges.append([max(0.3, scopes[0]-0.1), (scopes[0]+scopes[1])/2])
-            for i in range(1, len(scopes)-1):
-                min_range=(scopes[i]+scopes[i-1])/2
-                max_range=(scopes[i]+scopes[i+1])/2
-                scope_ranges.append([min_range, max_range])
-            scope_ranges.append([(scope_ranges[-1][1]+1)/2, 1])
-            return scopes, scope_ranges
-        else:
-            #return scopes
-            scope_ranges=[]
-            for i in range(len(scopes)):
-                min_range=(scopes[i]+scopes[i])/2
-                max_range=(scopes[i]+scopes[i])/2
-                scope_ranges.append([min_range, max_range])
-            return scopes, scope_ranges
+        #return scopes
+        scope_ranges=[]
+        for i in range(len(scopes)):
+            min_range=(scopes[i]+scopes[i])/2
+            max_range=(scopes[i]+scopes[i])/2
+            scope_ranges.append([min_range, max_range])
+        return scopes, scope_ranges
     
     def mask_for_no_padding(self, max_black_ratio=0.2):
         centers, _=self.center()
@@ -387,7 +301,7 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         return paddings
 
 if __name__=='__main__':
-    net=PreActResFeatureNet(input_size=224, main_layer=5, output_layer=[1,2,3,4,5,-1], output_dims=[1,1,1,1,1,1])
+    net=PreActResFeatureNet_Imagenet(input_size=224, main_layer=5, output_layer=[4,5,-1], output_dims=[1,1,1,1,1,1])
     x=torch.randn([10,3,224,224])
     #scopes: [0.05357142857142857, 0.10714285714285714, 0.21428571428571427, 0.42857142857142855, 0.8571428571428571, 1]
     #net=PreActResFeatureNet(input_size=64, main_layer=3, output_layer=[1,2,3,-1], output_dims=[1,1,1,1])
@@ -395,4 +309,6 @@ if __name__=='__main__':
     
     feature=net(x)
     print(net.scope())
+    print(net.center())
     print([y.shape for y in feature])
+    print(net.mask_for_no_padding(0.5))

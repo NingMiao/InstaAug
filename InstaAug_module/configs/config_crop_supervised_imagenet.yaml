@@ -36,3 +36,5 @@ contrastive_train_output_max: 2
 contrastive_test_aug: False
 contrastive_test_copies: 2
 contrastive_test_output_max: 2
+
+max_black_ratio: 1.0 #?
