@@ -78,7 +78,9 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         
         params=torch.cat(param_list, dim=1) #Shape:[batch, num_patches]
-        logprob=torch.nn.functional.log_softmax(params, dim=-1)        
+        logprob=torch.nn.functional.log_softmax(params, dim=-1)  
+        
+        self.logprob=logprob#?
         prob=torch.exp(logprob)        
         
         ##This is not supported by xla
@@ -88,8 +90,9 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         ##This is without replacement, careful
         rand = torch.empty_like(prob).uniform_()
-        samples = (-rand.log()+logprob).topk(k=n_copies).indices #Careful log
-        
+        #?samples = (-rand.log()+logprob).topk(k=n_copies).indices #Careful log
+        #samples = torch.arange(prob.shape[1]).unsqueeze(0).tile([prob.shape[0],2]).to(self.device)#?
+        samples = torch.arange(prob.shape[1]).unsqueeze(0).tile([prob.shape[0],2]).to(self.device)[:, -1:]#?
         ##Select the top-output_max patches
         if output_max>0:#!May be incorrect
             smooth=False
@@ -106,6 +109,7 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         param_size_list=[]
         param_size_range_list=[]
         for i in range(n_copies):
+        #for i in range(492):#?
             samples_reshape=samples[:, i].reshape(-1)
             param_pos=torch.index_select(centers, 0, samples_reshape)
             param_pos=param_pos.reshape(samples.shape[0], 1, -1)
@@ -120,7 +124,8 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
             param_size_range=torch.index_select(size_ranges, 0, samples_reshape)
             param_size_range=param_size_range.reshape(samples.shape[0], 1, -1)
             param_size_range_list.append(param_size_range)
-            
+        
+        
         param_pos=torch.cat(param_pos_list, dim=1)
         param_pos_interval=torch.cat(param_pos_interval_list, dim=1)
         param_size=torch.cat(param_size_list, dim=1)
@@ -134,6 +139,11 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
             param_size=param_size_range[:,:,0:1]*r+param_size_range[:,:,1:2]*(1-r)
             param_size=torch.tile(param_size,[1,1,2])
         
+        
+        #?
+        #param_size[:,246:,:]=param_size[:,246:,:]-0.2#?
+        
+        
         #!Post process to avoid black margin
         
         if avoid_black_margin:
@@ -143,6 +153,7 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         transformation_param=torch.cat([param_pos, param_size], axis=-1)
         #Old entropy term
+
         entropy_every=torch.unsqueeze(-(prob*logprob).sum(axis=-1), 1)#!
         #New entropy to avoid encouraging too many small patches
         
@@ -156,6 +167,7 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         prob_mean=prob.mean(axis=0, keepdim=True)
         log_prob_mean=torch.log(prob_mean)
         KL_every=(prob_mean*(log_prob_mean-logprob)).sum(axis=-1)
+        
         
         return transformation_param, entropy_every, sample_logprob, KL_every
                  

@@ -121,12 +121,12 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         #    256 * widen_factor, 512 * widen_factor
         #]
         self._nChannels = [
-            32,
-            32 * widen_factor, 64 * widen_factor,
-            128 * widen_factor
+            8,
+            8 * widen_factor, 16 * widen_factor,
+            32 * widen_factor
         ]
         for i in range(3, self.main_layer):
-            self._nChannels.append(128 * widen_factor)
+            self._nChannels.append(32 * widen_factor)
         
         
     def _init_first_layer(self):
@@ -157,7 +157,7 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         
         self.features_dim = self._nChannels[-1] * self._block.expansion
     
-    def _init_output_network(self):
+    def _init_output_network_old(self):#?
         
         #New for crop_and_color
         self.output_conv_list=[]
@@ -179,38 +179,30 @@ class PreActResFeatureNet_Imagenet(nn.Module):
                 feature_pre=nn.Conv2d(
                 self._nChannels[layer], self.output_dims[i], kernel_size=size_layers[-1], stride=1, padding=0, bias=False)
                 feature=nn.Sequential(feature_pre, AddBias([self.output_dims[i], 1, 1]))
-            
-            
-            #exec('self.conv_feature'+'66726'+' =feature')#!
+                        
             exec('self.conv_feature'+str(i)+' =feature')
             
             self.output_conv_list.append(feature)
             self.output_conv_list=torch.nn.ModuleList(self.output_conv_list)#!
+    
+    def _init_output_network(self):#?
         
-        ##Old for crop only
-        #layer=0
-        #self.conv_feature0=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        
-        #layer=1
-        #self.conv_feature1=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        #layer=2
-        #self.conv_feature2=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        #layer=3
-        #self.conv_feature3=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=1, stride=1, padding=0, bias=True)
-        
-        #self.conv_feature_global=nn.Conv2d(
-        #        self._nChannels[layer], 1, kernel_size=8, stride=1, padding=0, bias=True)
-        
-        #conv_list=[self.conv_feature0, self.conv_feature1, self.conv_feature2, self.conv_feature3, self.conv_feature_global]
-        
-        
-        #self.output_conv_list=[]
-        #for i in self.output_layer:
-        #    self.output_conv_list.append(conv_list[i])
+        #New for crop_and_color
+        self.output_conv_list=[]
+        for i in range(len(self.output_layer)):
+            layer=self.output_layer[i]
+            
+            in_dim=7*7*32
+            if layer==4:
+                out_dim=14*14
+            elif layer==5:
+                out_dim=7*7
+            elif layer==-1:
+                out_dim=1
+            feature=torch.nn.Linear(in_dim, out_dim)
+            
+            self.output_conv_list.append(feature)
+        self.output_conv_list=torch.nn.ModuleList(self.output_conv_list)#!
     
     
     def _make_conv1(self, nb_input_channel):
@@ -260,11 +252,11 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         """
         for m in self.modules():
             torchutils.weights_init_hetruncatednormal(m, dense_gaussian=self.dense_gaussian)
-        for item in self.output_conv_list:
-            item[0].weight.data*=0.3#!Stablize training.
+        #?for item in self.output_conv_list:
+        #?    item[0].weight.data*=0.3#!Stablize training.
 
 
-    def forward(self, x): 
+    def forward_old(self, x):#? 
 
         merged_representation = self._forward_first_layer(x)
         
@@ -273,10 +265,29 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         out_list=[]
         for i in range(len(self.output_layer)):
             out=self.output_conv_list[i](map_list[self.output_layer[i]])
-            #!out_list.append(out[:,0])#??
-            out_list.append(out)#??
+            out_list.append(out)
         
         return out_list      
+    
+    def forward(self, x):#? 
+
+        merged_representation = self._forward_first_layer(x)
+        
+        map_list=self._forward_core_network(merged_representation)
+        
+        out_list=[]
+        feature=map_list[-1].reshape(map_list[-1].shape[0], -1)
+        for i in range(len(self.output_layer)):
+            if self.output_layer[i]==4:
+                shape=[1, 14, 14]
+            elif self.output_layer[i]==5:
+                shape=[1, 7, 7]
+            elif self.output_layer[i]==-1:
+                shape=[1, 1, 1]
+            out=self.output_conv_list[i](feature).reshape([-1, shape[0], shape[1], shape[2]])
+            out_list.append(out)
+        
+        return out_list     
     
     def _forward_first_layer(self, pixels):
         return self.conv1(pixels)
@@ -387,7 +398,7 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         return paddings
 
 if __name__=='__main__':
-    net=PreActResFeatureNet(input_size=224, main_layer=5, output_layer=[1,2,3,4,5,-1], output_dims=[1,1,1,1,1,1])
+    net=PreActResFeatureNet_Imagenet(input_size=224, main_layer=5, output_layer=[4,5,-1], output_dims=[1,1,1,1,1,1])
     x=torch.randn([10,3,224,224])
     #scopes: [0.05357142857142857, 0.10714285714285714, 0.21428571428571427, 0.42857142857142855, 0.8571428571428571, 1]
     #net=PreActResFeatureNet(input_size=64, main_layer=3, output_layer=[1,2,3,-1], output_dims=[1,1,1,1])
