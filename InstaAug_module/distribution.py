@@ -81,6 +81,7 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         logprob=torch.nn.functional.log_softmax(params, dim=-1)        
         prob=torch.exp(logprob)        
         
+        print(prob[0].reshape([3, 5, 5]))#?
         ##This is not supported by xla
         #samples=torch.multinomial(prob, n_copies, replacement=True)
         
