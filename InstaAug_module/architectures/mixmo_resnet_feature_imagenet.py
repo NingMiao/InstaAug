@@ -121,12 +121,12 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         #    256 * widen_factor, 512 * widen_factor
         #]
         self._nChannels = [
-            32,
-            32 * widen_factor, 64 * widen_factor,
-            128 * widen_factor
+            8,
+            8 * widen_factor, 32 * widen_factor,
+            32 * widen_factor
         ]
         for i in range(3, self.main_layer):
-            self._nChannels.append(128 * widen_factor)
+            self._nChannels.append(32 * widen_factor)
         
         
     def _init_first_layer(self):
