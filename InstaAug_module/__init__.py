@@ -1,6 +1,7 @@
 from .augmentation import Augmentation 
+from .augmentation_new_param import Augmentation_New_Param
 from .architectures.mlp import Mlp
-from .architectures import PreActResNet, SimpleConv_tiny_imagenet, PreActResFeatureNet, PreActResFeatureNet_Rawfoot, PreActResFeatureNet_Imagenet, PreActResFeatureNet_Cifar
+from .architectures import PreActResNet, SimpleConv_tiny_imagenet, PreActResFeatureNet, PreActResFeatureNet_Rawfoot, PreActResFeatureNet_Imagenet, PreActResFeatureNet_Cifar, ImageLogit
 
 import torch
 import torch.nn as nn
@@ -23,12 +24,17 @@ class learnable_invariance(nn.Module):
         elif 'marioiggy' in cfg['dataset']:
             FeatureNet=PreActResFeatureNet
         elif 'imagenet' == cfg['dataset']:
-            FeatureNet=PreActResFeatureNet_Imagenet
+            if self.mode=='crop_new_param':
+                FeatureNet=ImageLogit
+            else:
+                FeatureNet=PreActResFeatureNet_Imagenet
         elif 'cifar' in cfg['dataset']:
             FeatureNet=PreActResFeatureNet_Cifar
         
-        
-        self.augmentation=Augmentation(FeatureNet, cfg['transform'], cfg, device=device)   
+        if self.mode=='crop_new_param':
+            self.augmentation=Augmentation_New_Param(FeatureNet, cfg, device=device)
+        else:
+            self.augmentation=Augmentation(FeatureNet, cfg['transform'], cfg, device=device)   
         self.__init__scheduler()
     
     def parameters(self):
@@ -53,83 +59,50 @@ class learnable_invariance(nn.Module):
         self.schedulers=[]
         for i in range(len(self.cfg['entropy_max_thresholds'])):
             self.schedulers.append(Scheduler(self.cfg['entropy_min_thresholds'][i],self.cfg['entropy_max_thresholds'][i]))
-    
-    #def entropy(self, mean=True):
-    #    #outputshape=[batch_size, aug_dimension], which is different from the old setting for crop
-    #    if self.cfg['mode']=='crop':
-    #        return self.crop_entropy(mean=mean)
-    #    elif self.cfg['mode']=='color':
-    #        return self.color_entropy(mean=mean)
-    #    elif self.cfg['mode']=='color_and_crop':
-    #        color_entropy=self.color_entropy(mean=mean)
-    #        crop_entropy=self.crop_entropy(mean=mean)
-    #        return torch.cat([color_entropy, crop_entropy], dim=1)
-    #    elif self.cfg['mode']=='rotation':
-    #        return self.rotation_entropy(mean=mean)
-    #    elif self.cfg['mode']=='crop_meanfield':
-    #        return self.crop_meanfield_entropy(mean=mean)
-    
-    
-    #def crop_entropy(self, mean=True):
-    #    #entropy_every has shape [batch_size]
-    #    if not hasattr(self.augmentation, 'dist_crop'):
-    #        return None
-    #    if mean:
-    #        return self.augmentation.dist_crop.entropy_every.mean(dim=0)
-    #    else:
-    #        return self.augmentation.dist_crop.entropy_every
-    
-    #def color_entropy(self, mean=True):
-    #    #entropy_every has shape [batch_size, #transforms*2]
-    #    if not hasattr(self.augmentation, 'dist_color'):
-    #        return None
-    #    
-    #    if mean:
-    #        return self.augmentation.dist_color.entropy_every.mean(dim=0)
-    #    else:
-    #        return self.augmentation.dist_color.entropy_every
-    
-    #def rotation_entropy(self, mean=True):
-    #    if not hasattr(self.augmentation, 'dist_rotation'):
-    #        return None
-    #    
-    #    if mean:
-    #        return self.augmentation.dist_rotation.entropy_every.mean(dim=0)
-    #    else:
-    #        return self.augmentation.dist_rotation.entropy_every
-    
-    #def crop_meanfield_entropy(self, mean=True):
-    #    #entropy_every has shape [batch_size, #transforms*2]
-    #    if not hasattr(self.augmentation, 'dist_crop_meanfield'):
-    #        return None
-    #    
-    #    if mean:
-    #        return self.augmentation.dist_crop_meanfield.entropy_every.mean(dim=0)
-    #    else:
-    #        return self.augmentation.dist_crop_meanfield.entropy_every
-    
+        
 if __name__=='__main__':
     torch.autograd.set_detect_anomaly(True)
     
-    Li=learnable_invariance()
+    flag=1
     
-    x=torch.randn([17, 3, 64,64])
-    for i in range(100):
+    if flag==0:
+        Li=learnable_invariance()
+    
+        x=torch.randn([17, 3, 64,64])
+        for i in range(100):
         
-        ds, logprob=Li(x)
-        print(ds.shape, logprob)
-        if mode=='color':
-            loss=-Li.color_entropy().mean()
-        elif mode=='crop':
-            loss=-Li.crop_entropy()
-        elif mode=='rotation':
-            loss=-Li.rotation_entropy().mean()
-        else:
-            loss=-Li.color_entropy().mean()-Li.crop_entropy()
+            ds, logprob=Li(x)
+            print(ds.shape, logprob)
+            if mode=='color':
+                loss=-Li.color_entropy().mean()
+            elif mode=='crop':
+                loss=-Li.crop_entropy()
+            elif mode=='rotation':
+                loss=-Li.rotation_entropy().mean()
+            else:
+                loss=-Li.color_entropy().mean()-Li.crop_entropy()
         
-        print(i, loss)
-        loss.backward()
-        for param in Li.parameters():
-            param.data-=0.001*param.grad
+            print(i, loss)
+            loss.backward()
+            for param in Li.parameters():
+                param.data-=0.001*param.grad
+    elif flag==1:
+        import yaml
+        Li_configs = yaml.safe_load(open('./InstaAug_module/configs/config_crop_supervised_imagenet_new_param.yaml','r'))
+        Li=learnable_invariance(Li_configs, device='cpu') 
+        
+        x=torch.zeros([10, 3, 224, 224], dtype=torch.float32)
+        x=torch.randn([10, 3, 224, 224], dtype=torch.float32)
+
+        #x[:,:,::5, ::10]=1
+        
+        x_out, sample_logprob, entropy_every, KL_every=Li(x, 10)
+        print(x_out.shape, sample_logprob.shape, entropy_every.shape, KL_every.shape)
+        print(entropy_every)
+        
+        import numpy as np
+        np.save('x_out.npy', x_out.numpy())
+        np.save('x.npy', x.numpy())
+
     
     

@@ -94,7 +94,7 @@ class LogitNet(nn.Module):
             18: PreActBlock,
         }
         layers = {
-            18: [2 for i in range(self.main_layer)],
+            18: [2 for i in range(self.main_layer)],#?
         }
         assert layers[
             self.depth
@@ -134,7 +134,6 @@ class LogitNet(nn.Module):
     
     def _init_output_network(self):
         
-        #New for crop_and_color
         self.output_layer=nn.Conv2d(self.features_dim, 1, kernel_size=1, stride=1, padding=0, bias=False)
                 
             
@@ -190,7 +189,7 @@ class LogitNet(nn.Module):
 
 
     def forward(self, x): 
-
+                
         merged_representation = self._forward_first_layer(x)
         
         x4=self._forward_core_network(merged_representation)
@@ -241,13 +240,21 @@ def get_scope(input_size=224):
 
 
 class ImageLogit(nn.Module):
-    def __init__(self, input_size=224, sizes=[0.4, 0.6, 0.8, 1.0], strides=[2,1,1,1], *args, **kwargs):
+    def __init__(self, input_size=224, sizes=[0.4, 0.6, 0.8, 1.0], strides=[2,1,1,1], bias=[0,0,0,0], device='cpu', *args, **kwargs):
         nn.Module.__init__(self)
         self.net=LogitNet()
         self.input_size=input_size
         self.sizes=sizes
         self.strides=strides
-        self.bias=nn.Parameter(torch.zeros([len(sizes)],dtype=torch.float32))
+        self.device=device
+        
+        self.zero=torch.zeros([1,1],dtype=torch.float32).to(device)
+        self.Adjust_bias=nn.Linear(1,4, bias=True).to(device)
+       
+        #self.adjust_bias=nn.Parameter(torch.tensor(bias,dtype=torch.float32)).to(device)
+        self.number_balance_bias = (-2*torch.log(torch.tensor([11, 10, 4, 1]).to(torch.float32))+torch.tensor(bias,dtype=torch.float32)).to(device)
+        #self.bias=self.adjust_bias+self.number_balance_bias
+        #Don't use nn.Parameter, which leads to frequent cpu-tpu communication
         
         self._init_resize_mats()
         
@@ -269,24 +276,44 @@ class ImageLogit(nn.Module):
             mat[j_floor, i]=j_ceil-j_float
             mat[j_ceil, i]=j_float-j_floor
         mat[-1, -1]=1
-        return torch.tensor(mat)
+        return torch.tensor(mat).to(self.device)
    
     def forward(self, imgs):
+        adjust_bias=self.Adjust_bias(self.zero)[0]
+        bias=adjust_bias+self.number_balance_bias
+        
         resized_imgs=[torch.matmul(torch.matmul(mat_1, imgs), mat_2) for (mat_1, mat_2) in self.resize_mats]
-        self.saved_resized_imgs=resized_imgs
-        logits = [self.net(resized_imgs[i])[:,0, self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i], self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i]] for i in range(len(self.bias))]
-        logits = [logits[i]+self.bias[i] for i in range(len(self.bias))]
+        
+        self.saved_resized_imgs=resized_imgs       
+        
+        logits = [self.net(resized_imgs[i])[:,0, self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i], self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i]] for i in range(len(bias))]
+        logits = [logits[i]+bias[i] for i in range(len(bias))]
         
         logits_reshape=[logit.reshape(logit.shape[0], -1) for logit in logits]
         logits_tensor=torch.cat(logits_reshape, dim=-1)
         return logits_tensor
     
+    def get_image_old(self, indexes):
+        return self.saved_resized_imgs[-1]#?
+        imgs=[]
+        img_size=len(self.saved_resized_imgs[0])
+        n_copies=int(len(indexes)/img_size)
+        for n in range(n_copies):
+            for i in range(img_size):
+                idx=indexes[n*img_size+i]
+                layer, pos_1, pos_2 = self.idx2detail[idx]
+                imgs.append(self.saved_resized_imgs[layer][i,:,pos_1:pos_1+224, pos_2: pos_2+224])
+        return torch.stack(imgs, dim=0)
+    
     def get_image(self, indexes):
         imgs=[]
-        for i in range(len(indexes)):
-            idx=indexes[i]
-            layer, pos_1, pos_2 = self.idx2detail[idx]
-            imgs.append(self.saved_resized_imgs[layer][i,:,pos_1:pos_1+224, pos_2: pos_2+224])
+        img_size=len(self.saved_resized_imgs[0])
+        n_copies=int(len(indexes)/img_size)
+        for n in range(n_copies):
+            for i in range(img_size):
+                idx=indexes[n*img_size+i]
+                layer, pos_1, pos_2 = self.idx2detail[idx]
+                imgs.append(self.saved_resized_imgs[layer][i,:,pos_1:pos_1+224, pos_2: pos_2+224])
         return torch.stack(imgs, dim=0)
     
     def _remove_margin(self):

@@ -158,11 +158,64 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         KL_every=(prob_mean*(log_prob_mean-logprob)).sum(axis=-1)
         
         return transformation_param, entropy_every, sample_logprob, KL_every
-                 
-    
-    #def rsample(self):
+
+class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
+    """ U([-theta, theta]) """
+    #For our categorical cropping.
+    len_param = 1
+
+    def __init__(self, device='cuda', **kwargs):
+        super(Cropping_New_Param_Categorical_Dist_ConvFeature, self).__init__()
         
-    #    return self.param, self.sample_logprob    #!only support one sample now
+        self.device=device
+        self.onehot_mat=torch.eye(238, device=device)        
+    @property
+    def params(self):
+        return {}
+    
+    def forward(self, logits, n_copies=1):   
+       
+        logprob=torch.nn.functional.log_softmax(logits, dim=-1)        
+        prob=torch.exp(logprob)        
+        
+        ##This is not supported by xla
+        #samples=torch.multinomial(prob, n_copies, replacement=True)
+        ##This is without replacement, careful
+        rand = torch.empty_like(prob).uniform_()
+        samples = (-rand.log()+logprob).topk(k=n_copies).indices #Careful log
+        
+        ##Select the top-output_max patches
+        
+        #Old entropy term
+        #entropy_every=torch.unsqueeze(-(prob*logprob).sum(axis=-1), 1)#!
+        
+        #Split entropy into two terms
+        prob_0=prob[:, :121]
+        prob_1=prob[:, 121:221]
+        prob_2=prob[:, 221:237]
+        prob_3=prob[:, 237:]
+        
+        prob_list=[prob_0, prob_1, prob_2, prob_3]
+        prob_sum_list=[torch.sum(prob_tem, dim=1, keepdims=True) for prob_tem in prob_list]
+        prob_level=torch.cat(prob_sum_list, dim=1)
+        entropy_every=torch.unsqueeze(-(prob_level*torch.log(prob_level)).sum(axis=-1), 1)
+        
+        #prob_list_nor
+        #intra_level_entropy=
+        
+        
+        ##onehot not supported by xla
+        #samples_onehot=torch.nn.functional.one_hot(samples, logprob.shape[-1])
+        samples_onehot=torch.index_select(self.onehot_mat, 0, samples.reshape([-1])).reshape([samples.shape[0], samples.shape[1], -1])
+        
+        sample_logprob=(samples_onehot*logprob.unsqueeze(1)).sum(axis=-1)         
+        
+        #KL divergence which reflects the output difference between inputs
+        prob_mean=prob.mean(axis=0, keepdim=True)
+        log_prob_mean=torch.log(prob_mean)
+        KL_every=(prob_mean*(log_prob_mean-logprob)).sum(axis=-1)
+        
+        return samples, entropy_every, sample_logprob, KL_every    
         
     
 class Color_Uniform_Dist_ConvFeature(ParametricDistribution):
