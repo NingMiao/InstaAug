@@ -13,8 +13,8 @@ import torchvision.transforms as transforms#!
 #!
 
 def get_crop_basic_information(conv, crop_layers_id, max_black_ratio=1):
-    centers, center_intervals = conv.module.center(interval=True)#!Careful
-    scopes, scope_ranges = conv.module.scope(ranges=True)#!Careful
+    centers, center_intervals = conv.module.center(interval=False)#?
+    scopes, scope_ranges = conv.module.scope(ranges=False)#?
     
     centers_crop=[centers[i] for i in crop_layers_id]
     center_intervals_crop=[center_intervals[i] for i in crop_layers_id]
@@ -260,7 +260,6 @@ class Augmentation(nn.Module):
     def forward(self, x, n_copies=1, output_max=0, global_aug=False, random_crop_aug=False, random_color_aug=False, hsv_input=True):
         
         #output_max=K is to output the top-K samples, which only works for cropping
-        
         bs, _, w, h = x.size()
                 
         if hsv_input:
@@ -405,8 +404,7 @@ class Augmentation(nn.Module):
             
             if self.coft_flag:
                 x_out = self.coft(x, weights)
-                
-                return x_out, sample_logprob, entropy_every
+                return x_out, sample_logprob, entropy_every, KL_every
            
             ## exponential map to apply transformations
             i=0
