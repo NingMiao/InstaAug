@@ -17,7 +17,7 @@ entropy_increase_period: 10
 sleep_period: 0 #not is use now
 
 crop_layer: [4, 5, -1] #!
-crop_layer_bias: [3,3, 0] #?
+crop_layer_bias: [0,7, 0] #?
 
 entropy_weights: [0.2]
 #entropy_weights: [0.2] #For supervised
