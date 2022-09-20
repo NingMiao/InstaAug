@@ -15,6 +15,7 @@ import numpy as np
 from .mixmo_utils import torchutils
 #from .mixmo_utils.logger import get_logger
 
+
 #LOGGER = get_logger(__name__, level="DEBUG")
 class LOGGER:
     @staticmethod
@@ -26,10 +27,10 @@ BATCHNORM_MOMENTUM_PREACT = 0.1
 class AddBias(nn.Module):
     def __init__(self, shape):
         super(AddBias, self).__init__()
-        self.bias=nn.Parameter(torch.zeros(1, *shape).type(torch.float))
+        self.bias=nn.Parameter(torch.zeros(*shape).type(torch.float))
 
-    def forward(self, x):
-        return x+self.bias
+    def forward(self):
+        return self.bias
 
 class PreActBlock(nn.Module):
     '''Pre-activation version of the BasicBlock.'''
@@ -94,7 +95,7 @@ class LogitNet(nn.Module):
             18: PreActBlock,
         }
         layers = {
-            18: [2 for i in range(self.main_layer)],#?
+            18: [2 for i in range(self.main_layer)],#!
         }
         assert layers[
             self.depth
@@ -196,7 +197,7 @@ class LogitNet(nn.Module):
         
         out=self.output_layer(x4)
         
-        return out   
+        return out/10.0
     
     def _forward_first_layer(self, pixels):
         return self.conv1(pixels)
@@ -248,9 +249,8 @@ class ImageLogit(nn.Module):
         self.strides=strides
         self.device=device
         
-        self.zero=torch.zeros([1,1],dtype=torch.float32).to(device)
-        self.Adjust_bias=nn.Linear(1,4, bias=True).to(device)
-       
+        self.Adjust_bias=AddBias([4])
+        
         #self.adjust_bias=nn.Parameter(torch.tensor(bias,dtype=torch.float32)).to(device)
         self.number_balance_bias = (-2*torch.log(torch.tensor([11, 10, 4, 1]).to(torch.float32))+torch.tensor(bias,dtype=torch.float32)).to(device)
         #self.bias=self.adjust_bias+self.number_balance_bias
@@ -259,6 +259,7 @@ class ImageLogit(nn.Module):
         self._init_resize_mats()
         
         self._remove_margin()
+        self._build_indexing_mat()
         
     def _init_resize_mats(self):
         self.out_size=[int(self.input_size/size) for size in self.sizes]
@@ -279,42 +280,39 @@ class ImageLogit(nn.Module):
         return torch.tensor(mat).to(self.device)
    
     def forward(self, imgs):
-        adjust_bias=self.Adjust_bias(self.zero)[0]
+        adjust_bias=self.Adjust_bias()*5
         bias=adjust_bias+self.number_balance_bias
         
         resized_imgs=[torch.matmul(torch.matmul(mat_1, imgs), mat_2) for (mat_1, mat_2) in self.resize_mats]
-        
-        self.saved_resized_imgs=resized_imgs       
-        
+        self.saved_resized_img=self._cat_img(resized_imgs) 
+
         logits = [self.net(resized_imgs[i])[:,0, self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i], self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i]] for i in range(len(bias))]
+
         logits = [logits[i]+bias[i] for i in range(len(bias))]
-        
         logits_reshape=[logit.reshape(logit.shape[0], -1) for logit in logits]
         logits_tensor=torch.cat(logits_reshape, dim=-1)
         return logits_tensor
-    
-    def get_image_old(self, indexes):
-        return self.saved_resized_imgs[-1]#?
-        imgs=[]
-        img_size=len(self.saved_resized_imgs[0])
-        n_copies=int(len(indexes)/img_size)
-        for n in range(n_copies):
-            for i in range(img_size):
-                idx=indexes[n*img_size+i]
-                layer, pos_1, pos_2 = self.idx2detail[idx]
-                imgs.append(self.saved_resized_imgs[layer][i,:,pos_1:pos_1+224, pos_2: pos_2+224])
-        return torch.stack(imgs, dim=0)
+        
+    def _cat_img(self, imgs):
+        img_0=imgs[0]
+        img_1=torch.cat([imgs[1], imgs[0][:,:,:self.out_size[1],:self.out_size[0]-self.out_size[1]]], dim=-1)
+        img_2=torch.cat([imgs[2], imgs[0][:,:,:self.out_size[2],:self.out_size[0]-self.out_size[2]]], dim=-1)
+        img_3=torch.cat([imgs[3], imgs[0][:,:,:self.out_size[3],:self.out_size[0]-self.out_size[3]]], dim=-1)
+        return torch.cat([img_0, img_1, img_2, img_3], dim=-2)
     
     def get_image(self, indexes):
-        imgs=[]
-        img_size=len(self.saved_resized_imgs[0])
-        n_copies=int(len(indexes)/img_size)
-        for n in range(n_copies):
-            for i in range(img_size):
-                idx=indexes[n*img_size+i]
-                layer, pos_1, pos_2 = self.idx2detail[idx]
-                imgs.append(self.saved_resized_imgs[layer][i,:,pos_1:pos_1+224, pos_2: pos_2+224])
-        return torch.stack(imgs, dim=0)
+        n_copies=int(len(indexes)/self.saved_resized_img.shape[0])
+        resize_img = torch.tile(self.saved_resized_img, [n_copies,1,1,1]) # [batch*n_copies, 3,  le, se]
+        mat_l=torch.index_select(self.mat_l, 0, indexes) # [batch*n_copies, 224, le]
+        mat_r=torch.index_select(self.mat_r, 0, indexes) # [batch*n_copies, se, 224]
+        #Left
+        mat_l = torch.unsqueeze(mat_l, 1) # [batch*n_copies, 1, 224, le]
+        img_left=torch.matmul(mat_l, resize_img) #[batch*n_copies, 3, 224, se]
+        mat_r = torch.unsqueeze(mat_r, 1)  # [batch*n_copies,1, se, 224]
+
+        img_out=torch.matmul(img_left, mat_r) # [batch*n_copies,1, 224, 224]
+        
+        return img_out
     
     def _remove_margin(self):
         scopes=[[[sizes[0]-1, sizes[1]] for sizes in get_scope(self.out_size[i])] for i in range(len(self.out_size))] #sizes[0]-1 is to make size equal 224
@@ -349,7 +347,28 @@ class ImageLogit(nn.Module):
                 for k in range(0, len(self.non_black_scopes[i]), self.strides[i]):
                     idx2detail.append([i, self.non_black_scopes[i][j][0], self.non_black_scopes[i][k][0]])
         self.idx2detail=idx2detail
-
+    
+    def _build_indexing_mat(self):
+        #Can further save memory if memory is limited
+        l=len(self.idx2detail)
+        le=sum(self.out_size)
+        se=self.out_size[0]
+        #Right mat
+        mat_r=torch.zeros([l, se, 224], dtype=torch.float32)
+        for i in range(l):
+            for j in range(224):
+                mat_r[i, self.idx2detail[i][2]+j, j]=1
+        #Left mat
+        mat_l=torch.zeros([l, 224, le], dtype=torch.float32)
+        for i in range(l):
+            start=self.idx2detail[i][1]
+            for k in range(self.idx2detail[i][0]):
+                start+=self.out_size[k]
+            for j in range(224):
+                mat_l[i, j, start+j]=1
+        self.mat_l=mat_l.to(self.device)
+        self.mat_r=mat_r.to(self.device)
+    
 if __name__=='__main__':
     net=ImageLogit()
     x=torch.randn([100,3,224,224])*0

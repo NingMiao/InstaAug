@@ -168,7 +168,8 @@ class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
         super(Cropping_New_Param_Categorical_Dist_ConvFeature, self).__init__()
         
         self.device=device
-        self.onehot_mat=torch.eye(238, device=device)        
+        self.onehot_mat=torch.eye(238, device=device)
+        
     @property
     def params(self):
         return {}
@@ -176,8 +177,11 @@ class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
     def forward(self, logits, n_copies=1):   
        
         logprob=torch.nn.functional.log_softmax(logits, dim=-1)        
-        prob=torch.exp(logprob)        
+        prob=torch.exp(logprob)+1e-7        
         
+        #import numpy
+        #np.save('prob.npy', prob.detach().numpy())
+        #print(prob)
         ##This is not supported by xla
         #samples=torch.multinomial(prob, n_copies, replacement=True)
         ##This is without replacement, careful
@@ -198,7 +202,13 @@ class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
         prob_list=[prob_0, prob_1, prob_2, prob_3]
         prob_sum_list=[torch.sum(prob_tem, dim=1, keepdims=True) for prob_tem in prob_list]
         prob_level=torch.cat(prob_sum_list, dim=1)
-        entropy_every=torch.unsqueeze(-(prob_level*torch.log(prob_level)).sum(axis=-1), 1)
+        
+        #Old entropy
+        #!entropy_every=torch.unsqueeze(-(prob_level*torch.log(prob_level)).sum(axis=-1), 1) 
+        #Batch level entropy
+        prob_level_mean=torch.mean(prob_level, dim=0, keepdims=True)
+        entropy_every=-(prob_level_mean*torch.log(prob_level_mean)).sum(axis=-1, keepdims=True)
+        entropy_every=torch.tile(entropy_every, [prob_level.shape[0], 1])
         
         #prob_list_nor
         #intra_level_entropy=

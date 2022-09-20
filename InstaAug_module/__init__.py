@@ -91,18 +91,20 @@ if __name__=='__main__':
         Li_configs = yaml.safe_load(open('./InstaAug_module/configs/config_crop_supervised_imagenet_new_param.yaml','r'))
         Li=learnable_invariance(Li_configs, device='cpu') 
         
-        x=torch.zeros([10, 3, 224, 224], dtype=torch.float32)
-        x=torch.randn([10, 3, 224, 224], dtype=torch.float32)
-
+        x=torch.zeros([1, 3, 224, 224], dtype=torch.float32)
+        x=torch.randn([1, 3, 224, 224], dtype=torch.float32)
         #x[:,:,::5, ::10]=1
         
         x_out, sample_logprob, entropy_every, KL_every=Li(x, 10)
-        print(x_out.shape, sample_logprob.shape, entropy_every.shape, KL_every.shape)
-        print(entropy_every)
+        #print(x_out.shape, sample_logprob.shape, entropy_every.shape, KL_every.shape)
+        #print(entropy_every)
+        #print(Li.augmentation.get_param.idx2detail)
         
-        import numpy as np
-        np.save('x_out.npy', x_out.numpy())
-        np.save('x.npy', x.numpy())
+        print(Li.augmentation.get_param.get_image(torch.tensor([1, 121, 221, 237], dtype=torch.int32)))
+        
+        #import numpy as np
+        #np.save('x_out.npy', x_out.numpy())
+        #np.save('x.npy', x.numpy())
 
     
     

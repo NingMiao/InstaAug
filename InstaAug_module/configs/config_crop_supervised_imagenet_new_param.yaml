@@ -10,18 +10,19 @@ li_flag: True #!
 load_li: False #!
 train_copies: 1 
 test_time_aug: False
-test_copies: 10
+test_copies: 1
 lr: 0.001 #!
 warmup_period: 10
 entropy_increase_period: 10
 sleep_period: 0 #not is use now
 
-bias: [0, 0, 0, 0] #?
+bias: [0, 1, 1, 1] #!
 
 entropy_weights: [0.2]
 #entropy_weights: [0.2] #For supervised
 #entropy_weights: [0.03] #For contrastive? 
-    
+global_entropy: True
+
 #Be careful of the order of min and max
 entropy_max_thresholds: [3.0] #~
 entropy_min_thresholds: [2.5] #~
