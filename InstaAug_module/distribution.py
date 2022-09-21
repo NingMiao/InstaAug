@@ -206,12 +206,14 @@ class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
         #Old entropy
         #!entropy_every=torch.unsqueeze(-(prob_level*torch.log(prob_level)).sum(axis=-1), 1) 
         #Batch level entropy
-        prob_level_mean=torch.mean(prob_level, dim=0, keepdims=True)
-        entropy_every=-(prob_level_mean*torch.log(prob_level_mean)).sum(axis=-1, keepdims=True)
-        entropy_every=torch.tile(entropy_every, [prob_level.shape[0], 1])
+        #prob_level_mean=torch.mean(prob_level, dim=0, keepdims=True)
+        #entropy_every=-(prob_level_mean*torch.log(prob_level_mean)).sum(axis=-1, keepdims=True)
+        #entropy_every=torch.tile(entropy_every, [prob_level.shape[0], 1])
         
-        #prob_list_nor
-        #intra_level_entropy=
+        #size<=0.6 entropy
+        entropy_every_pre0=prob[:,:121].sum(dim=1, keepdims=True)
+        entropy_every_pre1=prob[:,121:221].sum(dim=1, keepdims=True)
+        entropy_every=-torch.abs(0.3-entropy_every_pre0)-torch.abs(0.3-entropy_every_pre1)
         
         
         ##onehot not supported by xla

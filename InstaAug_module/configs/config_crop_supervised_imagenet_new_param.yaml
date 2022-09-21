@@ -16,7 +16,7 @@ warmup_period: 10
 entropy_increase_period: 10
 sleep_period: 0 #not is use now
 
-bias: [0, 1, 1, 1] #!
+bias: [0, 0, 0, 0] #!
 
 entropy_weights: [0.2]
 #entropy_weights: [0.2] #For supervised
