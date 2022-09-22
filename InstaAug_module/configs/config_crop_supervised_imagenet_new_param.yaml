@@ -17,6 +17,7 @@ entropy_increase_period: 10
 sleep_period: 0 #not is use now
 
 bias: [0, 0, 0, 0] #!
+fixed_pretrain: [0.25, 0.25, 0.25, 0.25]
 
 entropy_weights: [0.2]
 #entropy_weights: [0.2] #For supervised

@@ -185,8 +185,11 @@ class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
         ##This is not supported by xla
         #samples=torch.multinomial(prob, n_copies, replacement=True)
         ##This is without replacement, careful
-        rand = torch.empty_like(prob).uniform_()
-        samples = (-rand.log()+logprob).topk(k=n_copies).indices #Careful log
+        
+        #?rand = torch.empty_like(prob).uniform_()
+        #?samples = (-rand.log()+logprob).topk(k=n_copies).indices #Careful log
+        #samples = torch.tile(torch.unsqueeze(torch.arange(238, dtype=torch.int32), 0), [logits.shape[0], 1]).to(self.device)
+        samples = torch.tile(torch.unsqueeze(torch.arange(237,238, dtype=torch.int32), 0), [logits.shape[0], 1]).to(self.device)
         
         ##Select the top-output_max patches
         

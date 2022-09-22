@@ -66,7 +66,7 @@ class LogitNet(nn.Module):
     def __init__(self, *args, **kwargs):
         nn.Module.__init__(self)
         
-        config_network={"depth":18, "widen_factor":1}
+        config_network={"depth":18, "widen_factor":4}
         self.config_network = config_network
         self.main_layer=4
             
@@ -103,7 +103,6 @@ class LogitNet(nn.Module):
 
         self._layers = layers[self.depth]
         self._block = blocks[self.depth]
-        assert widen_factor in [1., 2., 3.]
         self._nChannels = [
             8,
             8 * widen_factor, 16 * widen_factor,
@@ -279,12 +278,16 @@ class ImageLogit(nn.Module):
         mat[-1, -1]=1
         return torch.tensor(mat).to(self.device)
    
-    def forward(self, imgs):
+    def forward(self, imgs, fixed_pretrain=None):
         adjust_bias=self.Adjust_bias()*5
         bias=adjust_bias+self.number_balance_bias
         
         resized_imgs=[torch.matmul(torch.matmul(mat_1, imgs), mat_2) for (mat_1, mat_2) in self.resize_mats]
+        
         self.saved_resized_img=self._cat_img(resized_imgs) 
+        
+        if resized_imgs is not None:#@
+            return 0
 
         logits = [self.net(resized_imgs[i])[:,0, self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i], self.non_black_indexes[i][0]:self.non_black_indexes[i][1]:self.strides[i]] for i in range(len(bias))]
 
@@ -311,7 +314,7 @@ class ImageLogit(nn.Module):
         mat_r = torch.unsqueeze(mat_r, 1)  # [batch*n_copies,1, se, 224]
 
         img_out=torch.matmul(img_left, mat_r) # [batch*n_copies,1, 224, 224]
-        
+                
         return img_out
     
     def _remove_margin(self):
