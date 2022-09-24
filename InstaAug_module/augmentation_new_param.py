@@ -32,11 +32,10 @@ class Augmentation_New_Param(nn.Module):
         logits = self.get_param(x)
         samples, entropy_every, sample_logprob, KL_every = self.distC_crop_new_param(logits, n_copies=n_copies)
         sample_logprob = sample_logprob.transpose(0,1).reshape([-1])
-        samples=samples.reshape([-1])
+        samples=samples.transpose(1,0).reshape([-1])
         x=torch.tile(x, [n_copies,1,1,1])
         with torch.no_grad():
             x_out=self.get_param.get_image(samples)
-            
         return x_out, sample_logprob, entropy_every, KL_every
         
         

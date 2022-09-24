@@ -9,8 +9,8 @@ global_aug: False
 li_flag: True #!
 load_li: False #!
 train_copies: 1 
-test_time_aug: False
-test_copies: 1
+test_time_aug: True #?
+test_copies: 238 #?
 lr: 0.001 #!
 warmup_period: 10
 entropy_increase_period: 10
