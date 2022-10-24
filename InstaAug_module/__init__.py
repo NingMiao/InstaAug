@@ -31,7 +31,7 @@ class learnable_invariance(nn.Module):
         elif 'cifar' in cfg['dataset']:
             FeatureNet=PreActResFeatureNet_Cifar
         
-        if self.mode=='crop_new_param':
+        if self.mode=='crop_new_param' and 'imagenet' == cfg['dataset']:
             self.augmentation=Augmentation_New_Param(FeatureNet, cfg, device=device)
         else:
             self.augmentation=Augmentation(FeatureNet, cfg['transform'], cfg, device=device)   

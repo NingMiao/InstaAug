@@ -207,7 +207,7 @@ class LogitNet(nn.Module):
         x1 = self.layer1(x0)
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
-        x4=self.layer4(x3)
+        x4 = self.layer4(x3)
         return x4
     
 def get_scope(input_size=224):
