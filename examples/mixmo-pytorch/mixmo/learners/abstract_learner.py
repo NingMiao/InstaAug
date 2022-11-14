@@ -44,7 +44,7 @@ class AbstractLearner:
     
     def _init_scheduler(self):
         self.real_epoch=0
-        self.test_loss_scheduler=Loss_Scheduler(self.config_args['max_tolerance'])
+        self.test_loss_scheduler=Loss_Scheduler(self.config_args['max_tolerance'], self.config_args['max_no_decrease'] )
         
         #if 'crop' in aug_param.mode and 'meanfield' not in aug_param.mode:
         #    self.crop_entropy_scheduler=Scheduler(aug_param.crop_min_threshold,aug_param.crop_max_threshold)
@@ -114,10 +114,17 @@ class AbstractLearner:
             #del(ckpt["augmentation.get_param.conv.conv_feature3.bias"])
             #del(ckpt['augmentation.get_param.conv.conv_feature_global.weight'])
             #del(ckpt["augmentation.get_param.conv.conv_feature_global.bias"])
-
-            for key in checkpoint[self.model_wrapper.name + "_aug_state_dict"].keys():#！
-                print(key, checkpoint[self.model_wrapper.name + "_aug_state_dict"][key].shape)#!
-            self.model_wrapper.Li.load_state_dict(checkpoint[self.model_wrapper.name + "_aug_state_dict"], strict=True)
+            
+            #new_dict={}
+            #for key in checkpoint[self.model_wrapper.name + "_aug_state_dict"].keys():#！
+            #    if key[:40]=='augmentation.get_param.conv.conv_feature':
+            #        new_key='augmentation.get_param.conv.output_conv_list.'+key[40:]
+            #        new_dict[new_key]=checkpoint[self.model_wrapper.name + "_aug_state_dict"][key]
+            
+            #for key in new_dict:
+            #    checkpoint[self.model_wrapper.name + "_aug_state_dict"][key]=new_dict[key]
+            
+            self.model_wrapper.Li.load_state_dict(checkpoint[self.model_wrapper.name + "_aug_state_dict"], strict=False)#?
             pass
 
         if include_optimizer:
@@ -217,7 +224,7 @@ class AbstractLearner:
 
         ## Save the model checkpoint
         ## and not config.cfg.DEBUG
-        if is_best_epoch:
+        if is_best_epoch or epoch%10==0:
             logs_dict["general/checkpoint_saved"] = {"value": 1.0, "string": "1.0"}
             save_epoch = True
         else:
@@ -328,7 +335,10 @@ class AbstractLearner:
             #Color entropy term
         if True:
             for i in range(len(self.Li_configs['entropy_min_thresholds'])):
-                entropy_step=self.Li.schedulers[i].step(logs_dict["test/entropy"]["value"][i])
+                try:
+                    entropy_step=self.Li.schedulers[i].step(logs_dict["test/entropy"]["value"][i])
+                except:
+                    entropy_step=self.Li.schedulers[i].step(logs_dict["train/entropy"]["value"][i])
                 self.Li_configs['entropy_weights'][i]*=entropy_step
                 if entropy_step!=1:
                     print('entropy_weight: {}, {}'.format(i, self.Li_configs['entropy_weights'][i]))

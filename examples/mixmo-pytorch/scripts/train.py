@@ -48,6 +48,7 @@ def parse_args():
     parser.add_argument("--info", type=str, default='')
     parser.add_argument("--checkpoint", type=str, default='')
     parser.add_argument("--resume_classifier_only",action="store_true",default=False,)
+    parser.add_argument("--eval_only",action="store_true",default=False,)
     
     #weight
     parser.add_argument("--h_weight", type=float, default=0.01)
@@ -64,6 +65,7 @@ def parse_args():
     #Learnable augmentation
     parser.add_argument("--Li_config_path", type=str, default='')
     parser.add_argument("--max_tolerance", type=int, default=1000)
+    parser.add_argument("--max_no_decrease", type=int, default=1000)
     
     # parse
     args = parser.parse_args()
@@ -106,9 +108,11 @@ def transform_args(args):
     misc.set_determ(config.cfg.RANDOM.SEED)
     
     config_args['resume_classifier_only']=args.resume_classifier_only
+    config_args['eval_only']=args.eval_only
     config_args['weights']=[args.h_weight, args.s_weight, args.v_weight]
     config_args['random_bounds']=[args.random_h_bound, args.random_s_bound, args.random_v_bound]
     config_args['max_tolerance']=args.max_tolerance
+    config_args['max_no_decrease']=args.max_no_decrease
     return config_args, device, checkpoint
 
 
@@ -142,6 +146,8 @@ def train(config_args, Li_configs, device, checkpoint, dataplace, train_name=Non
         start_epoch=1
     elif checkpoint is not None:
         LOGGER.warning(f"Load checkpoint: {checkpoint}")
+        start_epoch = learner.load_checkpoint(
+                checkpoint, include_optimizer=False, return_epoch=True) + 1
         try:
             start_epoch = learner.load_checkpoint(
                 checkpoint, include_optimizer=False, return_epoch=True) + 1
@@ -164,7 +170,7 @@ def train(config_args, Li_configs, device, checkpoint, dataplace, train_name=Non
     _config_name = os.path.split(
         os.path.splitext(config_args['training']['config_path'])[0])[-1]
 
-    try:
+    if not config_args['eval_only']:
         epoch = start_epoch
         for epoch in range(start_epoch, config_args["training"]["nb_epochs"] + 1):
             LOGGER.debug(f"Epoch: {epoch} for: {_config_name}")
@@ -172,17 +178,20 @@ def train(config_args, Li_configs, device, checkpoint, dataplace, train_name=Non
                 ratioepoch=epoch / config_args["training"]["nb_epochs"]
             )
             learner.train(epoch)
+    else:
+        scores=learner.evaluate(learner.dloader.test_loader, split='test')
+        print(scores)
 
-    except KeyboardInterrupt:
-        LOGGER.warning(f"KeyboardInterrupt for: {_config_name}")
-        if not click.confirm("continue ?", abort=False):
-            raise KeyboardInterrupt
+    #except KeyboardInterrupt:
+    #    LOGGER.warning(f"KeyboardInterrupt for: {_config_name}")
+    #    if not click.confirm("continue ?", abort=False):
+    #        raise KeyboardInterrupt
 
-    except Exception as exc:
-        LOGGER.error(f"Exception for: {_config_name}")
-        raise exc
+    #except Exception as exc:
+    #    LOGGER.error(f"Exception for: {_config_name}")
+    #    raise exc
 
-    return epoch
+    return 0
 
 
 def main_train():
@@ -197,13 +206,13 @@ def main_train():
         Li_configs={'li_flag': False}
 
     train(config_args, Li_configs, device, checkpoint, dataplace=args.dataplace, train_name=args.train_name)
-    print('train')
+    print('Finished')
     
     # test at best epoch
-    best_checkpoint = misc.get_checkpoint(
-        output_folder=config_args['training']['output_folder'],
-        epoch="best",
-    )
+    #best_checkpoint = misc.get_checkpoint(
+    #    output_folder=config_args['training']['output_folder'],
+    #    epoch="best",
+    #)
     #evaluate(
     #    config_args=config_args,
     #    device=device,

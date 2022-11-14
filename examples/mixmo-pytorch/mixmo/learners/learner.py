@@ -25,11 +25,10 @@ class Learner(abstract_learner.AbstractLearner):
         input_model = {"pixels": dict_tensors["pixels"]}
         if "metadata" in dict_tensors:
             input_model["metadata"] = dict_tensors["metadata"]
-
-        
+                    
         # Forward pass
         output_network = self.model_wrapper.predict(
-            input_model, aug=self.li_flag)
+            input_model, aug=self.li_flag, y=dict_tensors["target"]["target_0"])
 
         # Compute loss, backward and metrics
         self.model_wrapper.step(
@@ -125,7 +124,6 @@ class Learner(abstract_learner.AbstractLearner):
         
         # Loop over all samples in the evaluated dataset
         for batch_id, data in enumerate(loop):
-            
             loop.set_description(f"Evaluation")
 
             # Prepare the batch

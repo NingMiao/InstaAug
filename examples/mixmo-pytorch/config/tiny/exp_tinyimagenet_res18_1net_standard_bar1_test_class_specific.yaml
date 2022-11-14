@@ -1,5 +1,7 @@
 num_members: 1
 
+class_specific: True
+
 data:
   dataset: tinyimagenet200
   num_classes: 200
@@ -14,7 +16,7 @@ data:
   
   
 training:
-  nb_epochs: 150 #!change to 150 for supervised training
+  nb_epochs: 150 #!
   batch_size: 100 #!#trial should be 100, only 20 for trial
   dataset_wrapper:
     mixmo:

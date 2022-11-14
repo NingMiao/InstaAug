@@ -14,7 +14,7 @@ data:
   
   
 training:
-  nb_epochs: 11 #!
+  nb_epochs: 10 #!
   batch_size: 100 #!#trial should be 100, only 20 for trial
   dataset_wrapper:
     mixmo:

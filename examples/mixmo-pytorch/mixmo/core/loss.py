@@ -8,10 +8,6 @@ import torch.nn as nn
 
 from mixmo.utils import misc, logger
 
-import sys
-sys.path.insert(0, '../../')
-from InstaAug_module import aug_param
-
 LOGGER = logger.get_logger(__name__, level="DEBUG")
 
 def cross_entropy_transform(loss):

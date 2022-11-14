@@ -6,15 +6,14 @@ import numpy as np
 from .math_op import Generators, Crop
 from .utils import RGB2HSV, HSV2RGB, normalize, denormalize
 import time
-from .distribution import Cropping_Categorical_Dist_ConvFeature, Color_Uniform_Dist_ConvFeature, Rotation_Uniform_Dist_ConvFeature, Crop_Meanfield_Uniform_Dist_ConvFeature
-
+from .distribution import Cropping_Categorical_Dist_ConvFeature, Color_Uniform_Dist_ConvFeature, Rotation_Uniform_Dist_ConvFeature, Crop_Meanfield_Uniform_Dist_ConvFeature, Cropping_Categorical_tta_only_Dist_ConvFeature
 
 import torchvision.transforms as transforms#!
 #!
 
 def get_crop_basic_information(conv, crop_layers_id, max_black_ratio=1):
-    centers, center_intervals = conv.module.center(interval=False)#?
-    scopes, scope_ranges = conv.module.scope(ranges=False)#?
+    centers, center_intervals = conv.center(interval=False)#?
+    scopes, scope_ranges = conv.scope(ranges=False)#?
     
     centers_crop=[centers[i] for i in crop_layers_id]
     center_intervals_crop=[center_intervals[i] for i in crop_layers_id]
@@ -22,7 +21,7 @@ def get_crop_basic_information(conv, crop_layers_id, max_black_ratio=1):
     scope_ranges_crop=[scope_ranges[i] for i in crop_layers_id]
             
     if max_black_ratio<=1:#!
-        mask=conv.module.mask_for_no_padding(max_black_ratio)
+        mask=conv.mask_for_no_padding(max_black_ratio)
         for i in range(len(centers_crop)):
             m=mask[crop_layers_id[i]]
             if m==0:
@@ -80,7 +79,7 @@ class Image2AugmentParam(nn.Module):
                 layers.append(layer)
                 dims.append(dim)
                 
-        self.conv=torch.nn.DataParallel(conv(output_layer=layers, output_dims=dims))
+        self.conv=conv(output_layer=layers, output_dims=dims)
         #self.conv=conv(output_layer=layers, output_dims=dims)
         self.bias=bias #!
         
@@ -100,13 +99,13 @@ class Image2AugmentParam(nn.Module):
         if self.crop_layer!=[]:
             self.centers_crop, self.center_intervals_crop, self.scopes_crop, self.scope_ranges_crop, self.mask, self.log_nums_crop = get_crop_basic_information(self.conv, self.crop_layers_id, self.max_black_ratio)
         self.center_color=None
+        #print(self.scopes_crop, self.centers_crop) #output shape
         
         
     def parameters(self):
         return self.conv.parameters()
 
-    def forward(self, x):
-        
+    def forward(self, x, tta_only=False):
         params=self.conv(x)
         #If only 'crop' or 'color' is activated, the other set of outputs are [].
         #For cropping
@@ -123,8 +122,11 @@ class Image2AugmentParam(nn.Module):
                     if m==0:
                         continue
                     params_crop[i]=params_crop[i][:,:,m:-m, m:-m]
-            
-            params_crop=[params_crop[i]+self.bias[i]-self.log_nums_crop[i] for i in range(len(self.centers_crop))]#!
+            if not tta_only:
+                params_crop=[params_crop[i]+self.bias[i]-self.log_nums_crop[i] for i in range(len(self.centers_crop))]#!
+            else:
+                params_crop=[params_crop[i] for i in range(len(self.centers_crop))]#!
+            #print([x.shape for x in params_crop]) #output shape
         else:
             params_crop=[]
         
@@ -141,7 +143,7 @@ class Image2AugmentParam(nn.Module):
             else:
                 param_color=params[idx][:,:dim]
             if self.center_color==None:
-                center_color=[self.conv.module.center(layer) for layer in self.color_layer][0]#?To be improved               
+                center_color=[self.conv.center(layer) for layer in self.color_layer][0]#?To be improved               
             center_color=self.center_color
         else:
             param_color=None
@@ -177,7 +179,6 @@ class Image2AugmentParam(nn.Module):
         else:
             param_crop_meanfield=None
         
-        
         return params_crop, param_color, center_color, param_rotation, param_crop_meanfield #~First three for cropping, next two for color aug    
 
 
@@ -185,13 +186,14 @@ class Image2AugmentParam(nn.Module):
 class Augmentation(nn.Module):
     """docstring for MLPAug """
 
-    def __init__(self, conv, transform, cfg={}, device='cuda'):
+    def __init__(self, conv, transform, cfg={}, device='cuda', tta_only=False):
         super(Augmentation, self).__init__()
         self.transform = transform   
         self.transform_crop=[t for t in transform if t in ['crop']]
         self.transform_color=[t for t in transform if t in ['h','s','v']]
         self.transform_rotation=[t for t in transform if t =='rotation']
         self.transform_crop_meanfield=[t for t in transform if t =='crop_meanfield']
+        self.tta_only=tta_only
 
         
         if len(self.transform_crop)>0:
@@ -242,8 +244,10 @@ class Augmentation(nn.Module):
         #New version for crop
         centers_crop, center_intervals_crop, scopes_crop, scope_ranges_crop = self.get_param.centers_crop, self.get_param.center_intervals_crop, self.get_param.scopes_crop, self.get_param.scope_ranges_crop
         
-        
-        self.distC_crop=Cropping_Categorical_Dist_ConvFeature(centers_crop, center_intervals_crop, scopes_crop, scope_ranges_crop, device=device).to(device)
+        if not tta_only:
+            self.distC_crop=Cropping_Categorical_Dist_ConvFeature(centers_crop, center_intervals_crop, scopes_crop, scope_ranges_crop)
+        else:
+            self.distC_crop=Cropping_Categorical_tta_only_Dist_ConvFeature(centers_crop, center_intervals_crop, scopes_crop, scope_ranges_crop)
         
         if 'crop_only_for_tpu' in cfg and cfg['crop_only_for_tpu']:
             zoom_min, zoom_max, zoom_step, translation_min, translation_max, translation_step = cfg['zoom_min'], cfg['zoom_max'], cfg['zoom_step'], cfg['translation_min'], cfg['translation_max'], cfg['translation_step']
@@ -256,8 +260,14 @@ class Augmentation(nn.Module):
         
     def parameters(self):
         return self.get_param.parameters()
+    
+    def forward(self, x, n_copies=1, output_max=0, global_aug=False, random_crop_aug=False, random_color_aug=False, hsv_input=True, tta_train=True, params=None, **kwargs):
+        if not self.tta_only:
+            return self.forward_(x, n_copies=n_copies, output_max=output_max, global_aug=global_aug, random_crop_aug=random_crop_aug, random_color_aug=random_color_aug, hsv_input=hsv_input, params=params)
+        else:
+            return self.forward_tta_only(x, n_copies=n_copies, tta_train=tta_train, params=params)
 
-    def forward(self, x, n_copies=1, output_max=0, global_aug=False, random_crop_aug=False, random_color_aug=False, hsv_input=True):
+    def forward_(self, x, n_copies=1, output_max=0, global_aug=False, random_crop_aug=False, random_color_aug=False, hsv_input=True, params=None):
         
         #output_max=K is to output the top-K samples, which only works for cropping
         bs, _, w, h = x.size()
@@ -274,13 +284,14 @@ class Augmentation(nn.Module):
 
         
         ## Learnable but global cropping, only for baseline
-        if global_aug:
+        if params is not None:
+            params_crop=params #Only supports cropping now
+        elif global_aug:
             #print('--------------uniform aug mode--------------------------')
             params_crop, param_color, center_color, param_rotation, param_crop_meanfield=self.get_param(x_input*0)
         else:
             params_crop, param_color, center_color, param_rotation, param_crop_meanfield=self.get_param(x_input)
         x=torch.tile(x,[n_copies, 1,1,1])
-        
 
                             
         #Color aug
@@ -385,7 +396,7 @@ class Augmentation(nn.Module):
         if 'crop' in self.transform:
             
             centers_crop, center_intervals_crop, scopes_crop, scope_ranges_crop = self.get_param.centers_crop, self.get_param.center_intervals_crop, self.get_param.scopes_crop, self.get_param.scope_ranges_crop
-            
+                        
             if random_crop_aug:
                 _ = self.distC_crop(params_crop, n_copies=1, avoid_black_margin=False, smooth=False)#For code correctness
                 #crop=T.RandomResizedCrop(x.shape[2], scale=(0.08,1), ratio=(0.75,1.33))#!
@@ -394,7 +405,7 @@ class Augmentation(nn.Module):
                 for i in range(x.shape[0]):
                     x_out.append(crop(x[i]))
                 x_out = torch.stack(x_out, dim=0)
-                return x_out, torch.zeros([x_out.shape[0]]).to(x.device) , torch.zeros([x_out.shape[0]]).to(x.device)
+                return x_out, torch.zeros([x_out.shape[0]]).to(x.device) , torch.zeros([x_out.shape[0]]).to(x.device), None
             
             #Sample transformation
             weights, entropy_every, sample_logprob, KL_every = self.distC_crop(params_crop, n_copies=n_copies, avoid_black_margin=False, output_max=output_max)#!avoid_black_margin is True for contrastive and False for supervised
@@ -422,14 +433,59 @@ class Augmentation(nn.Module):
                 
             flowgrid = F.affine_grid(affine_matrices[:, :2, :], size=x.size(), align_corners=True)
             
-
-            
-            x_out = F.grid_sample(x, flowgrid, align_corners=True)
+            x_out = F.grid_sample(x, flowgrid, align_corners=True)             
             
             return x_out, sample_logprob, entropy_every, KL_every
         else:
             return x, torch.zeros([x.shape[0]]).to(x.device()), torch.zeros([x.shape[0]]).to(x.device()), torch.zeros([x.shape[0]]).to(x.device())
+
         
+    def forward_tta_only(self, x, n_copies=1, output_max=0, global_aug=False, random_crop_aug=False, random_color_aug=False, hsv_input=True, tta_train=True, params=None):
+        #tta only mode, only supports cropping now.
+        
+        bs, _, w, h = x.size()
+                
+        x_input=x
+        x=torch.tile(x,[n_copies, 1,1,1])
+        
+        if params is None:
+            params_crop, _, _, _, _=self.get_param(x_input, tta_only=True)
+        else:
+            params_crop=params
+        #Crop
+        if 'crop' in self.transform:            
+            #Sample transformation
+            weights, sample_logit, sample_id = self.distC_crop(params_crop, n_copies=n_copies, avoid_black_margin=False, output_max=output_max, tta_train=tta_train)# sample_id is the position of patches
+            weights = weights.transpose(0,1).reshape([-1, weights.shape[2]]) #shape=[batch_size*n_copies, para_dim]
+            #sample_logprob = sample_logprob.transpose(0,1).reshape([-1])  #shape=[batch_size*n_copies]
+            
+            if self.coft_flag:
+                x_out = self.coft(x, weights)
+                return x_out, sample_logprob, entropy_every, KL_every
+           
+            ## exponential map to apply transformations
+            i=0
+            for tranformation in self.transform_crop:
+                weights_dim=Generators.weights_dim(tranformation)
+                mat = getattr(Generators, tranformation)(weights[:,i:i+weights_dim])
+                if i==0:
+                    affine_matrices=mat
+                else:
+                    affine_matrices=torch.matmul(affine_matrices, mat)
+                    
+                i+=weights_dim
+            
+
+                
+            flowgrid = F.affine_grid(affine_matrices[:, :2, :], size=x.size(), align_corners=True)
+            
+
+            
+            x_out = F.grid_sample(x, flowgrid, align_corners=True)
+            
+            return x_out, sample_logit, sample_id, None
+        else:
+            return x, torch.zeros([x.shape[0]]).to(x.device())
         
 if __name__=='__main__':
     pass

@@ -46,11 +46,20 @@ class Scheduler:
             return 1.0
 
 class Loss_Scheduler:
-    def __init__(self, max_tolerance=3):
+    def __init__(self, max_tolerance=3, max_no_decrease=1000):
         self.current_loss=None
         self.count=0
+        self.no_decrease_count=0
         self.max_tolerance=max_tolerance
+        self.max_no_decrease=max_no_decrease
+        
     def step(self, loss):
+        if self.no_decrease_count>self.max_no_decrease:
+            self.no_decrease_count=0
+            self.count=0
+            return True
+        
+        self.no_decrease_count+=1    
         if self.current_loss is None:
             self.current_loss=loss
             return False
@@ -62,6 +71,7 @@ class Loss_Scheduler:
             self.count+=1
             if self.count>self.max_tolerance:
                 self.count=0
+                self.no_decrease_count=0
                 return True
             else:
                 return False

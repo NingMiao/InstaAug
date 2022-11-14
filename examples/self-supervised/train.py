@@ -55,7 +55,7 @@ if __name__ == "__main__":
     
     if Li_configs['li_flag']:
         Li=learnable_invariance(Li_configs)
-        Li.augmentation.get_param.conv.cuda()
+        Li.cuda()
     else:
         Li=None
     
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     if cfg.fname is not None:
         model.load_state_dict(torch.load(cfg.fname))
     if Li is not None and cfg.Li_fname is not None:
-        Li.augmentation.get_param.conv.load_state_dict(torch.load(cfg.Li_fname))
+        Li.load_state_dict(torch.load(cfg.Li_fname))
 
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.adam_l2)
     
@@ -124,7 +124,7 @@ if __name__ == "__main__":
                 batch_size=samples[0].shape[0]
                 samples_concat=torch.cat(samples, dim=0)
                 #samples_concat_origin=samples_concat#!
-                samples_concat, logprob=Li(samples_concat.cuda())
+                samples_concat, logprob, entropy_every, _=Li(samples_concat.cuda())
                 #samples_concat, logprob=Li(samples[0].cuda(), n_copies=2)
                 samples=[samples_concat[:batch_size], samples_concat[batch_size:]]#! One of the sample is not cropped           
                 
@@ -142,8 +142,7 @@ if __name__ == "__main__":
                 optimizer_Li.zero_grad() #Don't forget zero_grad
                 loss_predictor = model(samples, mean=False) ##Is there a issue with it?
                 loss_Li_pre=(loss_predictor.detach()*logprob).mean()+loss_predictor.mean() #!The last half
-                
-                entropy=Li.entropy()
+                entropy=entropy_every.mean(0)
                 entropy_np=entropy.detach().cpu().numpy()
                 
                 if not start_entropy:
@@ -197,6 +196,6 @@ if __name__ == "__main__":
             fname = f"{cfg.model_folder}/{cfg.method}_{cfg.dataset}_{ep}.pt"
             torch.save(model.state_dict(), fname)
             fname_Li = f"{cfg.model_folder}/{cfg.method}_{cfg.dataset}_{ep}_Li.pt"
-            torch.save(Li.augmentation.get_param.conv.state_dict(), fname_Li)
+            torch.save(Li.state_dict(), fname_Li)
 
         wandb.log({"loss": np.mean(loss_ep), "ep": ep})

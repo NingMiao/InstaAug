@@ -26,9 +26,9 @@ class Generators:
     def tx(weights):
         bs = weights.shape[0]
         g = torch.zeros(bs, 3, 3).to(weights.device)
-        g[:, 0, 0]=torch.ones(bs)
-        g[:, 1, 1]=torch.ones(bs)
-        g[:, 2, 2]=torch.ones(bs)
+        g[:, 0, 0]=torch.ones(bs).to(weights.device)
+        g[:, 1, 1]=torch.ones(bs).to(weights.device)
+        g[:, 2, 2]=torch.ones(bs).to(weights.device)
         g[:, 0, 2] = weights[:,0]
         return g
     
@@ -37,9 +37,9 @@ class Generators:
     def ty(weights):
         bs = weights.shape[0]
         g = torch.zeros(bs, 3, 3).to(weights.device)
-        g[:, 0, 0]=torch.ones(bs)
-        g[:, 1, 1]=torch.ones(bs)
-        g[:, 2, 2]=torch.ones(bs)
+        g[:, 0, 0]=torch.ones(bs).to(weights.device)
+        g[:, 1, 1]=torch.ones(bs).to(weights.device)
+        g[:, 2, 2]=torch.ones(bs).to(weights.device)
         g[:, 1, 2] = weights[:,0]
         return g
 
@@ -47,7 +47,7 @@ class Generators:
     def r(weights):
         bs = weights.shape[0]
         g = torch.zeros(bs, 3, 3).to(weights.device)
-        g[:, 2, 2]=torch.ones(bs)
+        g[:, 2, 2]=torch.ones(bs).to(weights.device)
         g[:, 0, 0] = torch.cos(weights[:,0])
         g[:, 0, 1] = -torch.sin(weights[:,0])
         g[:, 1, 0] = torch.sin(weights[:,0])
@@ -58,7 +58,7 @@ class Generators:
     def zoom(weights):
         bs = weights.shape[0]
         g = torch.zeros(bs, 3, 3).to(weights.device)
-        g[:, 2, 2]=torch.ones(bs)
+        g[:, 2, 2]=torch.ones(bs).to(weights.device)
         g[:, 0, 0] = weights[:,0]
         g[:, 1, 1] = weights[:,1]
         return g

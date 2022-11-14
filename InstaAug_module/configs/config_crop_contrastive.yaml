@@ -9,7 +9,7 @@ global_aug: False
 li_flag: True #!
 load_li: False #This term is not in use.
 train_copies: 1 
-test_time_aug: False
+test_time_aug: True
 test_copies: 50 
 lr: 0.0001 #!0.0001
 #sleep_period: 5

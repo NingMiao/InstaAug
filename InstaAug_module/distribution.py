@@ -1,6 +1,7 @@
 from .math_op import *
 from .utils import RGB2HSV, HSV2RGB, normalize, denormalize
 import time
+import numpy as np
 
 class ParametricDistribution(nn.Module):
     """ Distributions for sampling transformations parameters """
@@ -22,10 +23,9 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
     #For our categorical cropping.
     len_param = 1
 
-    def __init__(self, centers, center_intervals, sizes, size_ranges, device='cuda', **kwargs):
+    def __init__(self, centers, center_intervals, sizes, size_ranges, **kwargs):
         super(Cropping_Categorical_Dist_ConvFeature, self).__init__()
         
-        self.device=device
         center_list=[]
         size_list=[]
         
@@ -39,10 +39,10 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
             size=sizes[i]
             size_range=size_ranges[i]
             
-            center=center.reshape(-1, 2).to(device)
+            center=center.reshape(-1, 2)
             center_list.append(center)
             
-            zero_base=torch.zeros(center.shape).to(device)
+            zero_base=torch.zeros(center.shape)
             
             center_interval_list.append(zero_base+center_interval)
             
@@ -51,12 +51,19 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
             size_range_list.append(size_range_new)
         
         
-        self.centers=torch.cat(center_list, dim=0) #Shape:[num_patches, 2]
-        self.center_intervals=torch.cat(center_interval_list, dim=0) #Shape:[num_patches, 2]
-        self.sizes=torch.cat(size_list, dim=0) #Shape:[num_patches, 2]
-        self.size_ranges=torch.cat(size_range_list, dim=0) #Shape:[num_patches, 2]        
+        centers=torch.cat(center_list, dim=0) #Shape:[num_patches, 2]
+        center_intervals=torch.cat(center_interval_list, dim=0) #Shape:[num_patches, 2]
+        sizes=torch.cat(size_list, dim=0) #Shape:[num_patches, 2]
+        size_ranges=torch.cat(size_range_list, dim=0) #Shape:[num_patches, 2]        
         
-        self.onehot_mat=torch.eye(self.centers.shape[0], device=device)
+        onehot_mat=torch.eye(centers.shape[0])
+        
+        self.register_buffer('centers', centers)
+        self.register_buffer('center_intervals', center_intervals)
+        self.register_buffer('sizes', sizes)
+        self.register_buffer('size_ranges', size_ranges)
+        self.register_buffer('onehot_mat', onehot_mat)
+        
         
         self.output_memory=0
         
@@ -66,21 +73,18 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
     
     def forward(self, params, n_copies=1, avoid_black_margin=False, smooth=True, output_max=0):   
         centers, center_intervals, sizes, size_ranges = self.centers, self.center_intervals, self.sizes, self.size_ranges
+        if type(params)==type([]):
+            param_list=[]
                 
+            for i in range(len(params)):
+                param=params[i]      
+                shape=param.shape
+                param=param.view(shape[0], -1)
+                param_list.append(param)
         
-        param_list=[]
-                
-        for i in range(len(params)):
-            param=params[i]            
-            shape=param.shape
-            param=param.view(shape[0], -1)
-            param_list.append(param)
-        
-        
-        params=torch.cat(param_list, dim=1) #Shape:[batch, num_patches]
+            params=torch.cat(param_list, dim=1) #Shape:[batch, num_patches]
         logprob=torch.nn.functional.log_softmax(params, dim=-1)        
         prob=torch.exp(logprob)        
-        
         ##This is not supported by xla
         #samples=torch.multinomial(prob, n_copies, replacement=True)
         
@@ -93,8 +97,8 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         ##Select the top-output_max patches
         if output_max>0:#!May be incorrect
             smooth=False
-            nums=output_max#!
-            samples=torch.argsort(-logprob_single, axis=1)[:, :nums]                    
+            samples=logprob.topk(k=output_max).indices    
+            #samples=torch.arange(321).reshape(1, 321).tile(logprob.shape[0], 1).to(logprob.device)
         #np.save('output/sample/samples_id_'+str(self.output_memory)+'.npy', samples.detach().cpu().numpy())#@
         self.output_memory+=1
         #np.save('output/centers.npy', centers.detach().cpu().numpy())#@
@@ -128,9 +132,9 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
        
         #!Adding a better randomness
         if smooth:
-            param_pos_randomness=(torch.rand(param_pos.shape).to(self.device)*2-1)*param_pos_interval
+            param_pos_randomness=(torch.rand(param_pos.shape).to(self.centers.device)*2-1)*param_pos_interval
             param_pos+=param_pos_randomness
-            r=torch.rand(param_pos.shape[:-1]).unsqueeze(-1).to(self.device)
+            r=torch.rand(param_pos.shape[:-1]).unsqueeze(-1).to(self.centers.device)
             param_size=param_size_range[:,:,0:1]*r+param_size_range[:,:,1:2]*(1-r)
             param_size=torch.tile(param_size,[1,1,2])
         
@@ -159,6 +163,128 @@ class Cropping_Categorical_Dist_ConvFeature(nn.Module):
         
         return transformation_param, entropy_every, sample_logprob, KL_every
 
+class Cropping_Categorical_tta_only_Dist_ConvFeature(nn.Module):
+    """ U([-theta, theta]) """
+    #For our categorical cropping. tta only mode
+    len_param = 1
+
+    def __init__(self, centers, center_intervals, sizes, size_ranges, **kwargs):
+        super(Cropping_Categorical_tta_only_Dist_ConvFeature, self).__init__()
+        
+        center_list=[]
+        size_list=[]
+        
+        center_interval_list=[]
+        size_range_list=[]
+        
+        
+        for i in range(len(centers)):
+            center=centers[i]
+            center_interval=center_intervals[i]
+            size=sizes[i]
+            size_range=size_ranges[i]
+            
+            center=center.reshape(-1, 2)
+            center_list.append(center)
+            
+            zero_base=torch.zeros(center.shape)
+            
+            center_interval_list.append(zero_base+center_interval)
+            
+            size_list.append(zero_base+size)
+            size_range_new=torch.stack([zero_base[:,0]+size_range[0], zero_base[:,1]+size_range[1]], dim=-1)
+            size_range_list.append(size_range_new)
+        
+        
+        centers=torch.cat(center_list, dim=0) #Shape:[num_patches, 2]
+        center_intervals=torch.cat(center_interval_list, dim=0) #Shape:[num_patches, 2]
+        sizes=torch.cat(size_list, dim=0) #Shape:[num_patches, 2]
+        size_ranges=torch.cat(size_range_list, dim=0) #Shape:[num_patches, 2]        
+        
+        onehot_mat=torch.eye(centers.shape[0])
+        
+        self.register_buffer('centers', centers)
+        self.register_buffer('center_intervals', center_intervals)
+        self.register_buffer('sizes', sizes)
+        self.register_buffer('size_ranges', size_ranges)
+        self.register_buffer('onehot_mat', onehot_mat)
+        
+        self.output_memory=0
+        
+    @property
+    def params(self):
+        return {}
+    
+    def forward(self, params, n_copies=4, avoid_black_margin=False, smooth=True, output_max=0, tta_train=True):   
+        centers, center_intervals, sizes, size_ranges = self.centers, self.center_intervals, self.sizes, self.size_ranges
+                
+        
+        if type(params)==type([]):
+            param_list=[]
+            for i in range(len(params)):
+                param=params[i]            
+                shape=param.shape
+                param=param.reshape(shape[0], -1)
+                param_list.append(param)
+            params=torch.cat(param_list, dim=1) #Shape:[batch, num_patches] num_patches=196+100+16+1?
+        
+        if n_copies>5:
+            medium_patch_num=int((n_copies-2)/2)
+        else:
+            medium_patch_num=1
+        small_patch_num=n_copies-2-medium_patch_num
+        if tta_train:
+            samples_list = []
+            for i in range(params.shape[0]):
+                samples=[]
+                #small_patch_num=10#?
+                samples.extend(list(np.random.choice(np.arange(0, 1), 1)))
+                samples.extend(list(np.random.choice(np.arange(1, 5), 1)))
+                samples.extend(list(np.random.choice(np.arange(5, 14), medium_patch_num)))
+                samples.extend(list(np.random.choice(np.arange(14, 30), small_patch_num)))
+                #samples.extend(list(np.random.choice(np.arange(100, 109), medium_patch_num)))
+                #samples.extend([109])
+                samples_list.append(np.array(samples))
+                #samples_list.append(np.array([0,5,2,3,20,23,24,25, 19,10]))#?
+                #samples_list.append(np.array([109]*10))#?
+            samples=torch.tensor(np.stack(samples_list, 0).astype(np.int32)).to(self.centers.device)
+        else:
+            samples_list = []
+            samples_list.append(torch.topk(params[:,:1], 1, dim=1).indices)
+            samples_list.append(torch.topk(params[:,1:5], 1, dim=1).indices+1)
+            samples_list.append(torch.topk(params[:,5:14], medium_patch_num, dim=1).indices+5)
+            samples_list.append(torch.topk(params[:,14:30], small_patch_num, dim=1).indices+14)
+            samples=torch.concat(samples_list, 1)
+                
+        self.output_memory+=1
+        
+        param_pos_list=[]
+        param_pos_interval_list=[]
+        param_size_list=[]
+        param_size_range_list=[]
+        for i in range(n_copies):
+            samples_reshape=samples[:, i].reshape(-1)
+            param_pos=torch.index_select(centers, 0, samples_reshape)
+            param_pos=param_pos.reshape(samples.shape[0], 1, -1)
+            param_pos_list.append(param_pos)
+            
+            
+            param_size=torch.index_select(sizes, 0, samples_reshape)
+            param_size=param_size.reshape(samples.shape[0], 1, -1)
+            param_size_list.append(param_size)
+
+            
+        param_pos=torch.cat(param_pos_list, dim=1)
+        param_size=torch.cat(param_size_list, dim=1)
+        
+        transformation_param=torch.cat([param_pos, param_size], axis=-1)
+        
+        samples_onehot=torch.index_select(self.onehot_mat, 0, samples.reshape([-1])).reshape([samples.shape[0], samples.shape[1], -1])
+        
+        sample_logit=(samples_onehot*params.unsqueeze(1)).sum(axis=-1)
+        
+        return transformation_param, sample_logit, samples
+    
 class Cropping_New_Param_Categorical_Dist_ConvFeature(nn.Module):
     """ U([-theta, theta]) """
     #For our categorical cropping.

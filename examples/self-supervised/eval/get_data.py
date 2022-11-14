@@ -36,7 +36,7 @@ def get_data(model, loader, output_size, device, Li_configs={}, Li=None, mode='t
         for i, (x, y) in enumerate(loader):
             x = x.cuda()
             if aug:
-                x, logprob=Li(x, n_copies=n_copies, output_max=output_max)
+                x, logprob,_,_=Li(x, n_copies=n_copies, output_max=output_max)
             
             if average_feature:
                 feature_list=[]

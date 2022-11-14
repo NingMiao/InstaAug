@@ -34,6 +34,9 @@ def get_network(config_network, config_args):
         raise NotImplementedError
 
     LOGGER.warning(f"Loading network: {config_network['name']}")
-    return torch.nn.DataParallel(network_factory[config_network["name"]](
+    #return torch.nn.DataParallel(network_factory[config_network["name"]](
+    #    config_network=config_network,
+    #    config_args=config_args))
+    return network_factory[config_network["name"]](
         config_network=config_network,
-        config_args=config_args))
+        config_args=config_args)

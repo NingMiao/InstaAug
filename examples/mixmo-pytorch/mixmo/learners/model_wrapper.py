@@ -13,10 +13,22 @@ from mixmo.core import (
     metrics_wrapper)
 from mixmo.utils import logger, misc, torchsummary
 from mixmo.utils.config import cfg
-
+import torch.nn as nn
+import torch
 
 LOGGER = logger.get_logger(__name__, level="DEBUG")
 
+class Class2Param(nn.Module):
+    def __init__(self, num_classes, output_dim):
+        #65: 5, 321:
+        super(Class2Param, self).__init__()
+        self.num_classes=num_classes
+        param_pre=torch.zeros(num_classes,output_dim)
+        param_pre[:,-1]+=5
+        self.emb=nn.Parameter(param_pre)
+    def forward(self, y):
+        #y is the onehot class label of the shape [batch_size, class_num]
+        return torch.index_select(input=self.emb, index=y.argmax(1), dim=0)
 
 
 def get_predictions(logits):
@@ -42,9 +54,23 @@ class ModelWrapper:
         
         self.device = device
         self.mode = "notinit"
-        self._init_main()
+        
+        
+        if 'class_specific' in config_args and config_args['class_specific']:
+            self.class_specific=True
+            print('Class specific case!')
+        else:
+            self.class_specific=False
+        
         if self.li_flag:
             self.Li.to(self.device)
+            if self.class_specific:
+                self.class2param=Class2Param(200, 321)
+                self.class2param.to(self.device)
+            else:
+                self.class2param=None
+        
+        self._init_main()
 
     def _init_main(self):
         self.network = get_network(
@@ -66,9 +92,15 @@ class ModelWrapper:
             optimizer=self.config["optimizer"],
             list_param_groups=[{"params": list(self.network.parameters())}])
         else:
+            list_param_groups=[{"params": list(self.network.parameters())}]
+            if not self.class_specific:
+                list_param_groups.append({"params": list(self.Li.parameters()), 'lr':self.Li_configs['lr']})
+            else:
+                list_param_groups.append({"params": list(self.class2param.parameters()), 'lr':self.Li_configs['lr']})
+            
             self.optimizer = optimizer.get_optimizer(
             optimizer=self.config["optimizer"],
-            list_param_groups=[{"params": list(self.network.parameters())}, {"params": list(self.Li.parameters()), 'lr':self.Li_configs['lr']}])
+            list_param_groups=list_param_groups)
             
             
         #if hasattr(self.network, 'contrastive_pretraining'):
@@ -134,7 +166,10 @@ class ModelWrapper:
         Update internal records
         """
         if self.li_flag:
-            entropy=self.Li.entropy(mean=False)
+            try:
+                entropy=self.entropy_every
+            except:
+                entropy=0.0
             current_loss, aug_loss = self.loss(output, target, entropy, self.Li_configs)
 
         else:
@@ -207,7 +242,7 @@ class ModelWrapper:
                 logs_dict[s] = scores[s]
         return logs_dict
  
-    def predict(self, data, aug=False):
+    def predict(self, data, aug=False, y=None):
         """
         Perform a forward pass through the model and return the output
         """
@@ -276,9 +311,15 @@ class ModelWrapper:
 
         if self.Li_configs['ConvFeature']:
             if self.mode=='train':
-                aug_x, logprob=self.Li(x, n_copies=n_copies)
+                if not self.class_specific:
+                    aug_x, logprob, entropy_every, _=self.Li(x, n_copies=n_copies)
+                else:
+                    params=self.class2param(y)
+                    aug_x, logprob, entropy_every, _=self.Li(x, n_copies=n_copies, params=params)
+                self.entropy_every=entropy_every
             else:
-                aug_x, logprob=self.Li(x, n_copies=n_copies, output_max=n_copies)
+                aug_x, logprob, entropy_every, _=self.Li(x, n_copies=n_copies, output_max=n_copies, random_crop_aug=self.class_specific)
+                self.entropy_every=entropy_every
         else:
             aug_x = torch.cat([self.Li(x) for _ in range(n_copies)], dim=0)#!bug and problem for MIMO        
         
@@ -323,9 +364,25 @@ class ModelWrapper:
                     #if False:
                         logit_new=F.log_softmax(logit[:n_copies*shape[0]])
                         logit_new=logit_new.reshape([n_copies, -1, logit_new.shape[-1]]).transpose(0,1)
-                        logprob_new=logprob.reshape([n_copies, -1]).transpose(1,0).unsqueeze(-1)
-                        logit_aug=torch.sum(torch.exp(logit_new)*torch.exp(logprob_new*0.0), dim=1)
-                        
+                        #logprob_new=logprob.reshape([n_copies, -1]).transpose(1,0).unsqueeze(-1)
+                        #logit_aug=torch.sum(torch.exp(logit_new)*torch.exp(logprob_new*0.4), dim=1)
+                        logit_new_exp=torch.exp(logit_new)
+                        logit_aug=logit_new_exp[:,1:].mean(1)+logit_new_exp[:,0]*0.2
+                        if False:
+                            
+                            import numpy as np
+                            logit_save=logit_new.detach().cpu().numpy()
+                            logprob_save=logprob_new.detach().cpu().numpy()
+                            if hasattr(self, 'save_flag'):
+                                self.save_flag+=1
+                            else:
+                                self.save_flag=0
+                            name_logit='./tem/save/logit_'+str(self.save_flag)+'.npy'
+                            name_logprob='./tem/save/logprob_'+str(self.save_flag)+'.npy'
+                            np.save(name_logit, logit_save)
+                            np.save(name_logprob, logprob_save)
+                            
+                            
                     else:
                         #logit_aug = sum(torch.split(F.log_softmax(logit[:n_copies*shape[0]], dim=-1), shape[0]))
                         if False:
@@ -345,15 +402,8 @@ class ModelWrapper:
                 
                 
                 output[key]=torch.cat([logit_aug, logit_x], dim=0)
-        
-        ##Save for analysis
-        if False:
-            with open('../Learnable_invariance_package/rawfoot_result/logit.txt','a') as g:
-                logit_np=logit.detach().cpu().numpy()
-                s='\t'.join([' '.join([str(item) for item in line]) for line in logit_np])
-                g.write(s+'\n')
-        
-        
+
+                
         if self.Li_configs['ConvFeature']:
             output['logprob']=logprob
         

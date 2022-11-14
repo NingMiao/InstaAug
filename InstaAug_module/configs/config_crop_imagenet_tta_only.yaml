@@ -1,0 +1,19 @@
+mode: crop
+
+dataset: imagenet
+
+transform: ['crop']
+
+sizes: [1.0, 0.8, 0.6, 0.4]
+nums: [1, 2, 3, 4]
+
+
+
+#Not in use
+entropy_max_thresholds: [0.0]
+entropy_min_thresholds: [0.0]
+random_aug: False
+global_aug: False
+output_max: False
+li_flag: True
+test_time_aug: True

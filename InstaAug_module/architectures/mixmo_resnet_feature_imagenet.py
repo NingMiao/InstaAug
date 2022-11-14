@@ -131,7 +131,7 @@ class PreActResFeatureNet_Imagenet(nn.Module):
         
     def _init_first_layer(self):
         assert self.config_args["num_members"] == 1
-        self.conv1 = self._make_conv1(nb_input_channel=3)#! The channel is changed to 6
+        self.conv1 = self._make_conv1(nb_input_channel=3)
 
     def _init_core_network(self):
         """
@@ -265,16 +265,13 @@ class PreActResFeatureNet_Imagenet(nn.Module):
 
 
     def forward(self, x): 
-
         merged_representation = self._forward_first_layer(x)
-        
         map_list=self._forward_core_network(merged_representation)
         
         out_list=[]
         for i in range(len(self.output_layer)):
             out=self.output_conv_list[i](map_list[self.output_layer[i]])
-            #!out_list.append(out[:,0])#??
-            out_list.append(out)#??
+            out_list.append(out)
         
         return out_list      
     
