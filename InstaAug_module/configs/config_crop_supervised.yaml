@@ -22,8 +22,8 @@ entropy_weights: [0.2]
 #entropy_weights: [0.03] #For contrastive? 
     
 #Be careful of the order of min and max
-entropy_max_thresholds: [4.0] #~
-entropy_min_thresholds: [3.5] #~
+entropy_max_thresholds: [3.5] #~
+entropy_min_thresholds: [3.0] #~
     
 scheduler_sleep_epoch: 0 #!
 ConvFeature: True
