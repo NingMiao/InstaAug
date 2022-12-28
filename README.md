@@ -46,7 +46,7 @@ python -m scripts.train --config_path config/tiny/exp_tinyimagenet_res18_1net_st
 
 Then train with InstaAug:
 ```sh
-python -m scripts.train --config_path config/tiny/exp_tinyimagenet_res18_1net_standard_bar1_test.yaml --dataplace $DATAPLACE --saveplace model_crop/ --gpu 0 --Li_config_path ../../InstaAug_module/configs/config_crop_supervised.yaml --max_tolerance 30 --max_no_decrease 50 --checkpoint model_crop/exp_tinyimagenet_res18_1net_standard_bar1_test_pretrainmemory/checkpoint_epoch_010.ckpt --resume_classifier_only --info crop --seed 3448
+python -m scripts.train --config_path config/tiny/exp_tinyimagenet_res18_1net_standard_bar1_test.yaml --dataplace $DATAPLACE --saveplace model_crop/ --gpu 0 --Li_config_path ../../InstaAug_module/configs/config_crop_supervised.yaml --max_tolerance 30 --max_no_decrease 50 --checkpoint model_crop/exp_tinyimagenet_res18_1net_standard_bar1_test_pretrainmemory/checkpoint_epoch_010.ckpt --resume_classifier_only --info crop
 ```
 
 ### Color-jittering on RawFooT
